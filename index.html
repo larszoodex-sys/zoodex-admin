@@ -1002,7 +1002,6 @@ function PageAnimals() {
     el('div',{style:'display:flex;gap:10px'},
       el('button',{'class':'btn btn-primary',onclick:()=>AnimalModal()},'+ Tier hinzufügen'),
       el('button',{'class':'btn btn-secondary',onclick:()=>BulkImportModal()},'📋 Text-Import'),
-      el('button',{'class':'btn btn-secondary',style:'padding:9px 12px',title:'Neu laden',onclick:async()=>{ if(state.currentZoo?.id){ setState({loading:true}); await switchZoo(state.currentZoo.id); } else { location.reload(); } }},'⟳'),
     ),
   );
   div.appendChild(topbar);
