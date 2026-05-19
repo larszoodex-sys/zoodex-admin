@@ -276,10 +276,15 @@ async function loadAll() {
 
 async function switchZoo(id) {
   const zoo = state.zoos.find(z => z.id === id);
-  if (!zoo) return;
-  const { data: a } = await db.from('animals').select('*').eq('zoo_id', id).order('sort_order');
-  const { data: ac } = await db.from('achievements').select('*').eq('zoo_id', id).order('sort_order');
-  setState({ currentZoo: zoo, animals: a||[], achievements: ac||[] });
+  if (!zoo) { setState({ loading: false }); return; }
+  try {
+    const { data: a } = await db.from('animals').select('*').eq('zoo_id', id).order('sort_order');
+    const { data: ac } = await db.from('achievements').select('*').eq('zoo_id', id).order('sort_order');
+    setState({ currentZoo: zoo, animals: a||[], achievements: ac||[], loading: false });
+  } catch(e) {
+    setState({ loading: false, alert: { type: 'error', msg: 'Fehler beim Laden.' } });
+    setTimeout(() => setState({alert:null}), 3000);
+  }
 }
 
 async function deleteZoo(id) {
@@ -997,7 +1002,7 @@ function PageAnimals() {
     el('div',{style:'display:flex;gap:10px'},
       el('button',{'class':'btn btn-primary',onclick:()=>AnimalModal()},'+ Tier hinzufügen'),
       el('button',{'class':'btn btn-secondary',onclick:()=>BulkImportModal()},'📋 Text-Import'),
-      el('button',{'class':'btn btn-secondary',style:'padding:9px 12px',title:'Neu laden',onclick:()=>{ setState({loading:true}); switchZoo(state.currentZoo.id); }},'⟳'),
+      el('button',{'class':'btn btn-secondary',style:'padding:9px 12px',title:'Neu laden',onclick:async()=>{ if(state.currentZoo?.id){ setState({loading:true}); await switchZoo(state.currentZoo.id); } else { location.reload(); } }},'⟳'),
     ),
   );
   div.appendChild(topbar);
