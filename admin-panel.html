@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ZooDex Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+  :root {
+    --bg:       #0E0F11;
+    --surface:  #16181C;
+    --surface2: #1E2127;
+    --border:   #2A2D35;
+    --text:     #E8EAF0;
+    --muted:    #6B7280;
+    --accent:   #4ADE80;
+    --accent2:  #F59E0B;
+    --danger:   #EF4444;
+    --blue:     #60A5FA;
+    --purple:   #A78BFA;
+    --r-standard: #9CA3AF;
+    --r-selten:   #3B82F6;
+    --r-episch:   #A855F7;
+    --r-legendaer:#F59E0B;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; min-height:100vh; }
+  a { color:inherit; text-decoration:none; }
+
+  /* ── LAYOUT ── */
+  .shell { display:grid; grid-template-columns:240px 1fr; min-height:100vh; }
+  .sidebar { background:var(--surface); border-right:1px solid var(--border); padding:0; display:flex; flex-direction:column; position:sticky; top:0; height:100vh; overflow-y:auto; }
+  .main { padding:32px; overflow-y:auto; }
+
+  /* ── SIDEBAR ── */
+  .logo { padding:24px 20px; border-bottom:1px solid var(--border); }
+  .logo-title { font-family:'Playfair Display',serif; font-size:22px; font-weight:700; }
+  .logo-title span { color:var(--accent); }
+  .logo-sub { font-size:11px; color:var(--muted); letter-spacing:.1em; text-transform:uppercase; margin-top:4px; }
+  .nav { padding:16px 12px; flex:1; }
+  .nav-section { font-size:10px; color:var(--muted); letter-spacing:.12em; text-transform:uppercase; padding:4px 8px 8px; margin-top:16px; }
+  .nav-item { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:8px; cursor:pointer; font-size:14px; color:var(--muted); transition:all .15s; margin-bottom:2px; border:none; background:none; width:100%; text-align:left; }
+  .nav-item:hover { background:var(--surface2); color:var(--text); }
+  .nav-item.active { background:rgba(74,222,128,.1); color:var(--accent); }
+  .nav-item .icon { font-size:16px; width:20px; text-align:center; }
+  .zoo-switcher { padding:12px; border-top:1px solid var(--border); }
+  .zoo-select { width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:8px 12px; border-radius:8px; font-size:13px; font-family:'DM Sans',sans-serif; outline:none; cursor:pointer; }
+
+  /* ── TOPBAR ── */
+  .topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:32px; }
+  .page-title { font-family:'Playfair Display',serif; font-size:28px; font-weight:700; }
+  .page-sub { font-size:13px; color:var(--muted); margin-top:4px; }
+
+  /* ── CARDS ── */
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:24px; }
+  .card + .card { margin-top:16px; }
+  .card-title { font-size:13px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; margin-bottom:16px; }
+
+  /* ── STATS GRID ── */
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:28px; }
+  .stat { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; }
+  .stat-val { font-family:'Playfair Display',serif; font-size:32px; font-weight:700; }
+  .stat-label { font-size:12px; color:var(--muted); margin-top:4px; }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; }
+  th { font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; text-align:left; padding:10px 14px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  td { padding:12px 14px; border-bottom:1px solid var(--border); font-size:14px; vertical-align:middle; }
+  tr:last-child td { border-bottom:none; }
+  tr:hover td { background:var(--surface2); }
+  .mono { font-family:'DM Mono',monospace; font-size:12px; color:var(--muted); }
+
+  /* ── RARITY BADGE ── */
+  .badge { display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:600; }
+  .badge-standard  { background:rgba(156,163,175,.15); color:var(--r-standard); border:1px solid rgba(156,163,175,.25); }
+  .badge-selten    { background:rgba(59,130,246,.15);  color:var(--r-selten);   border:1px solid rgba(59,130,246,.25); }
+  .badge-episch    { background:rgba(168,85,247,.15);  color:var(--r-episch);   border:1px solid rgba(168,85,247,.25); }
+  .badge-legendaer { background:rgba(245,158,11,.15);  color:var(--r-legendaer);border:1px solid rgba(245,158,11,.25); }
+
+  /* ── BUTTONS ── */
+  .btn { display:inline-flex; align-items:center; gap:6px; padding:9px 16px; border-radius:8px; font-size:14px; font-weight:500; cursor:pointer; border:none; font-family:'DM Sans',sans-serif; transition:all .15s; }
+  .btn-primary   { background:var(--accent); color:#0E0F11; }
+  .btn-primary:hover { filter:brightness(1.1); }
+  .btn-secondary { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+  .btn-secondary:hover { border-color:var(--muted); }
+  .btn-danger    { background:rgba(239,68,68,.15); color:var(--danger); border:1px solid rgba(239,68,68,.25); }
+  .btn-danger:hover { background:rgba(239,68,68,.25); }
+  .btn-ghost     { background:none; color:var(--muted); }
+  .btn-ghost:hover { color:var(--text); }
+  .btn-sm        { padding:5px 10px; font-size:12px; }
+
+  /* ── FORMS ── */
+  .form-row { margin-bottom:16px; }
+  .form-row label { display:block; font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; margin-bottom:6px; }
+  input[type=text], input[type=password], textarea, select.form-control {
+    width:100%; background:var(--surface2); border:1px solid var(--border);
+    color:var(--text); padding:10px 14px; border-radius:8px; font-size:14px;
+    font-family:'DM Sans',sans-serif; outline:none; transition:border-color .15s;
+  }
+  input[type=text]:focus, input[type=password]:focus, textarea:focus, select.form-control:focus { border-color:var(--accent); }
+  textarea { resize:vertical; min-height:80px; }
+  .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .form-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+
+  /* ── MODAL ── */
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.7); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px; }
+  .modal { background:var(--surface); border:1px solid var(--border); border-radius:16px; width:100%; max-width:640px; max-height:90vh; overflow-y:auto; }
+  .modal-header { padding:24px 28px 0; display:flex; align-items:center; justify-content:space-between; }
+  .modal-title { font-family:'Playfair Display',serif; font-size:22px; font-weight:700; }
+  .modal-body { padding:24px 28px; }
+  .modal-footer { padding:0 28px 24px; display:flex; gap:10px; justify-content:flex-end; }
+
+  /* ── AI BUTTON ── */
+  .ai-btn { display:flex; align-items:center; gap:8px; padding:10px 16px; background:linear-gradient(135deg, rgba(74,222,128,.15), rgba(96,165,250,.15)); border:1px solid rgba(74,222,128,.3); border-radius:8px; color:var(--accent); font-size:13px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all .2s; margin-bottom:20px; width:100%; justify-content:center; }
+  .ai-btn:hover { background:linear-gradient(135deg, rgba(74,222,128,.25), rgba(96,165,250,.25)); }
+  .ai-btn:disabled { opacity:.5; cursor:default; }
+  .ai-status { display:flex; align-items:center; gap:8px; padding:10px 14px; background:rgba(74,222,128,.08); border:1px solid rgba(74,222,128,.2); border-radius:8px; font-size:13px; color:var(--accent); margin-bottom:16px; }
+
+  /* ── RARITY PICKER ── */
+  .rarity-picker { display:flex; gap:8px; flex-wrap:wrap; }
+  .rarity-option { padding:6px 14px; border-radius:20px; font-size:12px; font-weight:600; cursor:pointer; border:1.5px solid transparent; transition:all .15s; }
+
+  /* ── TAG INPUT ── */
+  .tags-wrap { display:flex; flex-wrap:wrap; gap:6px; padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; min-height:42px; cursor:text; }
+  .tag-chip { display:inline-flex; align-items:center; gap:4px; background:rgba(74,222,128,.12); color:var(--accent); border-radius:20px; padding:3px 10px; font-size:12px; }
+  .tag-chip button { background:none; border:none; color:var(--accent); cursor:pointer; font-size:14px; line-height:1; padding:0; opacity:.7; }
+  .tag-chip button:hover { opacity:1; }
+  .tags-input { background:none; border:none; color:var(--text); font-size:13px; font-family:'DM Sans',sans-serif; outline:none; min-width:80px; }
+
+  /* ── EMPTY STATE ── */
+  .empty { text-align:center; padding:60px 20px; color:var(--muted); }
+  .empty-icon { font-size:48px; margin-bottom:12px; }
+  .empty p { font-size:14px; margin-top:8px; }
+
+  /* ── LOGIN ── */
+  .login-wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .login-card { width:100%; max-width:400px; }
+  .login-logo { text-align:center; margin-bottom:32px; }
+  .login-logo h1 { font-family:'Playfair Display',serif; font-size:40px; font-weight:700; }
+  .login-logo h1 span { color:var(--accent); }
+  .login-logo p { color:var(--muted); font-size:13px; margin-top:6px; letter-spacing:.1em; text-transform:uppercase; }
+
+  /* ── ALERT ── */
+  .alert { padding:12px 16px; border-radius:8px; font-size:13px; margin-bottom:16px; }
+  .alert-success { background:rgba(74,222,128,.1); border:1px solid rgba(74,222,128,.3); color:var(--accent); }
+  .alert-error   { background:rgba(239,68,68,.1);  border:1px solid rgba(239,68,68,.3);  color:var(--danger); }
+
+  /* ── SPIN ── */
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .spin { animation:spin .8s linear infinite; display:inline-block; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  .fade { animation:fadeIn .2s ease; }
+
+  /* ── PROGRESS ── */
+  .prog-bar { background:var(--surface2); border-radius:4px; height:6px; overflow:hidden; }
+  .prog-fill { height:100%; border-radius:4px; transition:width .4s ease; }
+
+
+  /* ── MOBILE RESPONSIVE ── */
+  @media (max-width: 768px) {
+    .shell { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .main { padding: 16px; }
+    .stats { grid-template-columns: 1fr 1fr; }
+    .form-grid { grid-template-columns: 1fr; }
+    .form-grid-3 { grid-template-columns: 1fr; }
+    .mobile-nav {
+      display: flex !important;
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--surface); border-top: 1px solid var(--border);
+      padding: 8px 0; z-index: 50;
+    }
+    .mobile-nav button {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      gap: 3px; background: none; border: none; color: var(--muted);
+      font-size: 10px; font-family: 'DM Sans', sans-serif; cursor: pointer; padding: 6px;
+    }
+    .mobile-nav button.active { color: var(--accent); }
+    .main { padding-bottom: 80px; }
+    table { font-size: 13px; }
+    th, td { padding: 8px 10px; }
+    .modal { max-width: 100%; margin: 0; border-radius: 16px 16px 0 0; }
+    .modal-overlay { align-items: flex-end; }
+  }
+  @media (min-width: 769px) {
+    .mobile-nav { display: none !important; }
+  }
+
+  /* ── QR PREVIEW ── */
+  .qr-box { background:white; border-radius:12px; padding:16px; display:inline-block; }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- CONFIG – HIER DEINE SUPABASE-DATEN EINTRAGEN               -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<script>
+const SUPABASE_URL = 'https://kuchrdpstkltnxcfrrtv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1Y2hyZHBzdGtsdG54Y2ZycnR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwOTEwODUsImV4cCI6MjA5NDY2NzA4NX0.jPzZ1fIZen27cpYInMrp2bSo4W8FME_DYnCxtADWQV8';
+const ADMIN_PASSWORD_KEY = 'zoodex_admin_pw';
+const DEFAULT_ADMIN_PW   = '|7.~#56cT,7T';
+</script>
+
+<div id="root"></div>
+
+<script>
+// ── SUPABASE CLIENT ──────────────────────────────────────────
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── RARITY CONFIG ────────────────────────────────────────────
+const RARITY = {
+  standard:  { label:'Standard',  icon:'○', cls:'standard'  },
+  selten:    { label:'Selten',    icon:'◆', cls:'selten'    },
+  episch:    { label:'Episch',    icon:'★', cls:'episch'    },
+  legendaer: { label:'Legendär',  icon:'👑',cls:'legendaer' },
+};
+
+
+// ── DROPDOWN OPTIONS ─────────────────────────────────────────
+const DIET_OPTIONS = ['Fleischfresser','Pflanzenfresser','Allesfresser','Fischfresser','Insektenfresser','Filtrierer','Aasfresser'];
+const BEHAVIOR_OPTIONS = ['Einzelgänger','Rudeltier','Herdentier','Nachtaktiv','Tagaktiv','Dämmerungsaktiv','Territorial','Wandernd','Sessil','Sozial'];
+const THREAT_OPTIONS = ['Nicht gefährdet (LC)','Vorwarnliste (NT)','Gefährdet (VU)','Stark gefährdet (EN)','Vom Aussterben bedroht (CR)','In freier Wildbahn ausgestorben (EW)','Ausgestorben (EX)'];
+const HABITAT_OPTIONS = ['Afrikanische Savanne','Tropischer Regenwald','Gemäßigter Wald','Wüste','Arktis & Antarktis','Süßwasser','Meeresküste','Hochgebirge','Feuchtgebiete','Australien','Südamerika','Asien','Europa','Nordamerika'];
+
+// ── STATE ────────────────────────────────────────────────────
+let state = {
+  loggedIn: false,
+  page: 'dashboard',
+  zoos: [],
+  currentZoo: null,
+  animals: [],
+  achievements: [],
+  loading: false,
+  modal: null,        // null | {type, data}
+  alert: null,        // null | {type, msg}
+  aiLoading: false,
+};
+
+function setState(patch) {
+  Object.assign(state, typeof patch === 'function' ? patch(state) : patch);
+  render();
+}
+
+// ── AUTH ─────────────────────────────────────────────────────
+function getAdminPw() { return localStorage.getItem(ADMIN_PASSWORD_KEY) || DEFAULT_ADMIN_PW; }
+function login(pw) {
+  if (pw === getAdminPw()) {
+    sessionStorage.setItem('zoodex_auth', '1');
+    setState({ loggedIn: true });
+    loadAll();
+  } else {
+    setState({ alert: {type:'error', msg:'Falsches Passwort.'} });
+  }
+}
+function logout() { sessionStorage.removeItem('zoodex_auth'); setState({ loggedIn:false, page:'dashboard' }); }
+
+// ── DATA ─────────────────────────────────────────────────────
+async function loadAll() {
+  setState({ loading: true });
+  const { data: zoos } = await db.from('zoos').select('*').order('name');
+  const zoo = zoos?.[0] || null;
+  let animals = [], achievements = [];
+  if (zoo) {
+    const { data: a } = await db.from('animals').select('*').eq('zoo_id', zoo.id).order('sort_order');
+    const { data: ac } = await db.from('achievements').select('*').eq('zoo_id', zoo.id).order('sort_order');
+    animals = a || [];
+    achievements = ac || [];
+  }
+  setState({ loading: false, zoos: zoos||[], currentZoo: zoo, animals, achievements });
+}
+
+async function switchZoo(id) {
+  const zoo = state.zoos.find(z => z.id === id);
+  if (!zoo) return;
+  const { data: a } = await db.from('animals').select('*').eq('zoo_id', id).order('sort_order');
+  const { data: ac } = await db.from('achievements').select('*').eq('zoo_id', id).order('sort_order');
+  setState({ currentZoo: zoo, animals: a||[], achievements: ac||[] });
+}
+
+async function deleteZoo(id) {
+  if (!confirm('Zoo und ALLE zugehörigen Tiere und Achievements wirklich löschen?')) return;
+  const { error } = await db.from('zoos').delete().eq('id', id);
+  if (error) { setState({ alert:{type:'error',msg:error.message} }); return; }
+  const zoos = state.zoos.filter(z => z.id !== id);
+  const currentZoo = zoos[0] || null;
+  let animals = [], achievements = [];
+  if (currentZoo) {
+    const { data: a } = await db.from('animals').select('*').eq('zoo_id', currentZoo.id).order('sort_order');
+    const { data: ac } = await db.from('achievements').select('*').eq('zoo_id', currentZoo.id).order('sort_order');
+    animals = a || []; achievements = ac || [];
+  }
+  setState({ zoos, currentZoo, animals, achievements, alert:{type:'success',msg:'Zoo gelöscht!'} });
+  setTimeout(() => setState({alert:null}), 3000);
+}
+
+async function saveAnimal(data) {
+  const isNew = !data.id;
+  const payload = {
+    zoo_id: state.currentZoo.id,
+    name: data.name, latin: data.latin, habitat: data.habitat,
+    diet: data.diet, weight: data.weight, lifespan: data.lifespan,
+    description: data.description, fun_fact: data.fun_fact,
+    rarity: data.rarity || 'standard',
+    tags: data.tags || [],
+    behavior: data.behavior || null,
+    threat_status: data.threat_status || null,
+    visible: data.visible !== false,
+    name_en: data.name_en || null,
+    description_en: data.description_en || null,
+    fun_fact_en: data.fun_fact_en || null,
+    behavior_en: data.behavior_en || null,
+    threat_status_en: data.threat_status_en || null,
+  };
+  let result;
+  if (isNew) result = await db.from('animals').insert(payload).select().single();
+  else result = await db.from('animals').update(payload).eq('id', data.id).select().single();
+
+  if (result.error) { setState({ alert:{type:'error',msg:result.error.message} }); return; }
+
+  const animals = isNew
+    ? [...state.animals, result.data]
+    : state.animals.map(a => a.id === data.id ? result.data : a);
+  setState({ animals, modal:null, alert:{type:'success', msg: isNew ? `${data.name} hinzugefügt!` : `${data.name} gespeichert!`} });
+  setTimeout(() => setState({alert:null}), 3000);
+}
+
+async function deleteAnimal(id) {
+  if (!confirm('Tier wirklich löschen?')) return;
+  await db.from('animals').delete().eq('id', id);
+  setState({ animals: state.animals.filter(a => a.id !== id) });
+}
+
+async function saveAchievement(data) {
+  const isNew = !data.id;
+  const payload = { zoo_id: state.currentZoo.id, title: data.title, description: data.description, icon: data.icon, tag: data.tag };
+  let result;
+  if (isNew) result = await db.from('achievements').insert(payload).select().single();
+  else result = await db.from('achievements').update(payload).eq('id', data.id).select().single();
+  if (result.error) { setState({ alert:{type:'error',msg:result.error.message} }); return; }
+  const achievements = isNew
+    ? [...state.achievements, result.data]
+    : state.achievements.map(a => a.id === data.id ? result.data : a);
+  setState({ achievements, modal:null, alert:{type:'success',msg:'Achievement gespeichert!'} });
+  setTimeout(() => setState({alert:null}), 3000);
+}
+
+async function deleteAchievement(id) {
+  if (!confirm('Achievement löschen?')) return;
+  await db.from('achievements').delete().eq('id', id);
+  setState({ achievements: state.achievements.filter(a => a.id !== id) });
+}
+
+async function saveZoo(data) {
+  const isNew = !data.id;
+  const payload = {
+    key: data.key, name: data.name, tagline: data.tagline,
+    emoji: data.emoji, color: data.color, accent: data.accent,
+    description: data.description, description_en: data.description_en,
+    tagline_en: data.tagline_en || null,
+    website: data.website, image_url: data.image_url || null,
+  };
+  if (!isNew) payload.id = data.id;
+  let result;
+  if (isNew) result = await db.from('zoos').insert(payload).select().single();
+  else result = await db.from('zoos').update(payload).eq('id', data.id).select().single();
+  if (result.error) { setState({ alert:{type:'error',msg:result.error.message} }); return; }
+  const zoos = isNew ? [...state.zoos, result.data] : state.zoos.map(z => z.id===data.id ? result.data : z);
+  const currentZoo = state.currentZoo?.id === data.id ? result.data : state.currentZoo;
+  setState({ zoos, currentZoo, modal:null, alert:{type:'success',msg:'Zoo gespeichert!'} });
+  setTimeout(() => setState({alert:null}), 3000);
+}
+
+// ── AI FETCH ─────────────────────────────────────────────────
+// KI-Feature entfernt
+
+// ── RENDER HELPERS ───────────────────────────────────────────
+function el(tag, attrs={}, ...children) {
+  const e = document.createElement(tag);
+  for (const [k,v] of Object.entries(attrs)) {
+    if (k === 'class') e.className = v;
+    else if (k === 'style' && typeof v === 'object') Object.assign(e.style, v);
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2).toLowerCase(), v);
+    else e.setAttribute(k, v);
+  }
+  for (const c of children.flat()) {
+    if (c == null) continue;
+    e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  }
+  return e;
+}
+function html(str) { const d = document.createElement('div'); d.innerHTML = str; return d.firstElementChild; }
+function badge(rarity) { const r = RARITY[rarity]||RARITY.standard; return `<span class="badge badge-${r.cls}">${r.icon} ${r.label}</span>`; }
+
+// ── MODALS ───────────────────────────────────────────────────
+function AnimalModal(animal={}) {
+  let form = {
+    id: animal.id||null, name:animal.name||'', latin:animal.latin||'',
+    habitat:animal.habitat||'', diet:animal.diet||'', weight:animal.weight||'',
+    lifespan:animal.lifespan||'', description:animal.description||'',
+    fun_fact:animal.fun_fact||'', rarity:animal.rarity||'standard',
+    behavior:animal.behavior||'', threat_status:animal.threat_status||'',
+    visible: animal.visible !== false,
+    name_en:animal.name_en||'', description_en:animal.description_en||'', fun_fact_en:animal.fun_fact_en||'',
+    behavior_en:animal.behavior_en||'', threat_status_en:animal.threat_status_en||'',
+    tags: Array.isArray(animal.tags) ? [...animal.tags] : [],
+  };
+
+  const overlay = el('div', {'class':'modal-overlay'});
+  const modal   = el('div', {'class':'modal fade'});
+
+  function buildTagsEl() {
+    const wrap = el('div', {'class':'tags-wrap', onclick:()=>inp.focus()});
+    form.tags.forEach(tag => {
+      const chip = el('span', {'class':'tag-chip'}, tag,
+        el('button', {onclick:()=>{ form.tags=form.tags.filter(t=>t!==tag); rebuild(); }}, '×')
+      );
+      wrap.appendChild(chip);
+    });
+    const inp = el('input', {'class':'tags-input', placeholder: form.tags.length?'':'Tags hinzufügen…',
+      onkeydown: e => {
+        if ((e.key==='Enter'||e.key===',') && inp.value.trim()) {
+          e.preventDefault();
+          const t = inp.value.trim().replace(/,$/,'');
+          if (t && !form.tags.includes(t)) { form.tags.push(t); rebuild(); }
+          else inp.value='';
+        }
+        if (e.key==='Backspace' && !inp.value && form.tags.length) {
+          form.tags.pop(); rebuild();
+        }
+      }
+    });
+    wrap.appendChild(inp);
+    return wrap;
+  }
+
+  function buildRarityPicker() {
+    const wrap = el('div', {'class':'rarity-picker'});
+    for (const [rk, rv] of Object.entries(RARITY)) {
+      const isActive = form.rarity === rk;
+      const colors = { standard:'#9CA3AF', selten:'#3B82F6', episch:'#A855F7', legendaer:'#F59E0B' };
+      const c = colors[rk];
+      const btn = el('button', {
+        'class':'rarity-option',
+        style:{ background: isActive?`${c}22`:'transparent', color: isActive?c:'#6B7280',
+                border: `1.5px solid ${isActive?c:'#2A2D35'}` },
+        onclick: () => { form.rarity=rk; rebuild(); }
+      }, `${rv.icon} ${rv.label}`);
+      wrap.appendChild(btn);
+    }
+    return wrap;
+  }
+
+  // Dropdown with free text fallback
+  function buildSelect(field, options, placeholder) {
+    const wrap = el('div', {style:'display:flex;gap:8px;align-items:center'});
+    const sel = el('select', {'class':'zoo-select', style:'flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:8px;font-size:14px;font-family:"DM Sans",sans-serif;outline:none;cursor:pointer;'});
+    const optBlank = el('option', {value:''}, placeholder);
+    sel.appendChild(optBlank);
+    options.forEach(o => {
+      const opt = el('option', {value:o}, o);
+      if (form[field] === o) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    // Custom option
+    const customOpt = el('option', {value:'__custom__'}, '✏ Eigener Eintrag…');
+    sel.appendChild(customOpt);
+
+    const textInp = el('input', {type:'text', value: options.includes(form[field]) ? '' : form[field]||'',
+      placeholder:'Eigener Eintrag…',
+      style:`flex:1;display:${options.includes(form[field])||!form[field]?'none':'block'}`,
+      oninput: e => form[field] = e.target.value
+    });
+
+    sel.addEventListener('change', () => {
+      if (sel.value === '__custom__') {
+        textInp.style.display = 'block';
+        textInp.focus();
+        form[field] = textInp.value;
+      } else {
+        textInp.style.display = 'none';
+        form[field] = sel.value;
+      }
+    });
+    if (form[field] && !options.includes(form[field])) sel.value = '__custom__';
+    else if (form[field]) sel.value = form[field];
+
+    wrap.append(sel, textInp);
+    return wrap;
+  }
+
+  let tagsEl, rarityEl;
+
+  function rebuild() {
+    const newTags   = buildTagsEl();
+    const newRarity = buildRarityPicker();
+    if (tagsEl)   tagsEl.replaceWith(newTags);
+    if (rarityEl) rarityEl.replaceWith(newRarity);
+    tagsEl   = newTags;
+    rarityEl = newRarity;
+  }
+
+  const inputs = {};
+  inputs.name    = el('input', {type:'text', value:form.name||'',    oninput: e=>form.name=e.target.value});
+  inputs.latin   = el('input', {type:'text', value:form.latin||'',   oninput: e=>form.latin=e.target.value});
+  inputs.weight  = el('input', {type:'text', value:form.weight||'',  placeholder:'z.B. 4,5–16 kg',  oninput: e=>form.weight=e.target.value});
+  inputs.lifespan= el('input', {type:'text', value:form.lifespan||'',placeholder:'z.B. 20–40 Jahre',oninput: e=>form.lifespan=e.target.value});
+  inputs.description    = el('textarea', {placeholder:'Beschreibung auf Deutsch, 2-3 Sätze', oninput: e=>form.description=e.target.value}, form.description||'');
+  inputs.fun_fact       = el('textarea', {placeholder:'Fun Fact auf Deutsch, 1 Satz', oninput: e=>form.fun_fact=e.target.value}, form.fun_fact||'');
+  inputs.name_en           = el('input', {type:'text', value:form.name_en||'', placeholder:'z.B. Amur Tiger', oninput: e=>form.name_en=e.target.value});
+  inputs.behavior_en       = el('input', {type:'text', value:form.behavior_en||'', placeholder:'e.g. Solitary', oninput: e=>form.behavior_en=e.target.value});
+  inputs.threat_status_en  = el('input', {type:'text', value:form.threat_status_en||'', placeholder:'e.g. Least Concern (LC)', oninput: e=>form.threat_status_en=e.target.value});
+  inputs.description_en = el('textarea', {placeholder:'Description in English, 2-3 sentences', oninput: e=>form.description_en=e.target.value}, form.description_en||'');
+  inputs.fun_fact_en    = el('textarea', {placeholder:'Fun fact in English, 1 sentence', oninput: e=>form.fun_fact_en=e.target.value, rows:2}, form.fun_fact_en||'');
+
+  tagsEl   = buildTagsEl();
+  rarityEl = buildRarityPicker();
+
+  const body = el('div', {'class':'modal-body'},
+    el('div', {'class':'form-grid'},
+      el('div', {'class':'form-row'}, el('label',{},'Name *'), inputs.name),
+      el('div', {'class':'form-row'}, el('label',{},'Lateinischer Name'), inputs.latin),
+    ),
+    el('div', {'class':'form-grid'},
+      el('div', {'class':'form-row'}, el('label',{},'Lebensraum'), buildSelect('habitat', HABITAT_OPTIONS, 'Lebensraum wählen…')),
+      el('div', {'class':'form-row'}, el('label',{},'Ernährung'), buildSelect('diet', DIET_OPTIONS, 'Ernährung wählen…')),
+    ),
+    el('div', {'class':'form-grid'},
+      el('div', {'class':'form-row'}, el('label',{},'Gewicht'), inputs.weight),
+      el('div', {'class':'form-row'}, el('label',{},'Lebenserwartung'), inputs.lifespan),
+    ),
+    el('div', {'class':'form-row'}, el('label',{},'Beschreibung'), inputs.description),
+    el('div', {'class':'form-row'}, el('label',{},'Fun Fact'), inputs.fun_fact),
+    el('div',{style:'background:rgba(96,165,250,.06);border:1px solid rgba(96,165,250,.2);border-radius:10px;padding:14px;margin-bottom:4px'},
+      el('div',{style:'font-size:11px;color:var(--blue);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;font-weight:700'},'🇬🇧 Englische Felder (optional)'),
+      el('div',{'class':'form-row'},el('label',{},'Name (EN)'),inputs.name_en),
+      el('div',{'class':'form-row'},el('label',{},'Beschreibung (EN)'),inputs.description_en),
+      el('div',{'class':'form-row'},el('label',{},'Fun Fact (EN)'),inputs.fun_fact_en),
+      el('div',{'class':'form-grid'},
+        el('div',{'class':'form-row'},el('label',{},'Verhalten (EN)'),inputs.behavior_en),
+        el('div',{'class':'form-row',style:'margin-bottom:0'},el('label',{},'Bedrohungsstatus (EN)'),inputs.threat_status_en),
+      ),
+    ),
+    el('div', {'class':'form-grid'},
+      el('div', {'class':'form-row'}, el('label',{},'Verhalten'), buildSelect('behavior', BEHAVIOR_OPTIONS, 'Verhalten wählen…')),
+      el('div', {'class':'form-row'}, el('label',{},'Bedrohungsstatus'), buildSelect('threat_status', THREAT_OPTIONS, 'Status wählen…')),
+    ),
+    el('div', {'class':'form-row'}, el('label',{},'Seltenheit'), rarityEl),
+    el('div', {'class':'form-row'}, el('label',{},'Tags (Enter zum Hinzufügen)'), tagsEl),
+    el('div', {'class':'form-row', style:{display:'flex',alignItems:'center',gap:'12px'}},
+      el('label',{style:{margin:0}},'Sichtbar in App'),
+      el('input',{type:'checkbox', checked: form.visible !== false,
+        style:{width:'20px',height:'20px',cursor:'pointer',accentColor:'var(--accent)'},
+        onchange: e => form.visible = e.target.checked
+      }),
+      el('span',{style:{fontSize:'12px',color:'var(--muted)'}},'Deaktivieren um Tier vorübergehend auszublenden')
+    ),
+  );
+
+  const footer = el('div', {'class':'modal-footer'},
+    el('button', {'class':'btn btn-secondary', onclick:()=>overlay.remove()}, 'Abbrechen'),
+    el('button', {'class':'btn btn-primary', onclick: async () => {
+      form.description    = inputs.description.value;
+      form.fun_fact       = inputs.fun_fact.value;
+      form.name           = inputs.name.value;
+      form.latin          = inputs.latin.value;
+      form.weight         = inputs.weight.value;
+      form.lifespan       = inputs.lifespan.value;
+      form.name_en           = inputs.name_en?.value || '';
+      form.description_en    = inputs.description_en?.value || '';
+      form.fun_fact_en       = inputs.fun_fact_en?.value || '';
+      form.behavior_en       = inputs.behavior_en?.value || '';
+      form.threat_status_en  = inputs.threat_status_en?.value || '';
+      await saveAnimal(form);
+      overlay.remove();
+    }}, animal.id ? '✓ Speichern' : '+ Hinzufügen'),
+  );
+
+  modal.append(
+    el('div', {'class':'modal-header'},
+      el('div', {'class':'modal-title'}, animal.id ? `Bearbeiten: ${animal.name}` : 'Neues Tier'),
+      el('button', {'class':'btn btn-ghost', onclick:()=>overlay.remove()}, '✕'),
+    ),
+    body, footer,
+  );
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target===overlay) overlay.remove(); });
+}
+
+
+// ── TEXT PARSER ──────────────────────────────────────────────
+function parseAnimalText(text) {
+  const result = {
+    name:'', latin:'', habitat:'', diet:'', weight:'', lifespan:'',
+    description:'', fun_fact:'', tags:[], rarity:'standard',
+    name_en:'', description_en:'', fun_fact_en:'',
+    behavior:'', threat_status:'', behavior_en:'', threat_status_en:'',
+  };
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  
+  // First line without colon = name
+  if (lines.length > 0 && !lines[0].includes(':')) {
+    result.name = lines[0].trim();
+  }
+
+  const patterns = {
+    name:          [/^Name\s*[:\-]+\s*(.+)/i, /^Tier\s*[:\-]+\s*(.+)/i],
+    latin:         [/Lateinischer Name\s*[:\-]+\s*(.+)/i, /Wissenschaftlicher Name\s*[:\-]+\s*(.+)/i, /Latein\s*[:\-]+\s*(.+)/i],
+    habitat:       [/Lebensraum\s*[:\-]+\s*(.+)/i, /Habitat\s*[:\-]+\s*(.+)/i, /Verbreitung\s*[:\-]+\s*(.+)/i, /Vorkommen\s*[:\-]+\s*(.+)/i],
+    diet:          [/Ernährung\s*[:\-]+\s*(.+)/i, /Nahrung\s*[:\-]+\s*(.+)/i, /Frisst\s*[:\-]+\s*(.+)/i, /Fresser\s*[:\-]+\s*(.+)/i],
+    weight:        [/Gewicht\s*[:\-]+\s*(.+)/i, /Körpergewicht\s*[:\-]+\s*(.+)/i, /Masse\s*[:\-]+\s*(.+)/i],
+    lifespan:      [/Lebenserwartung\s*[:\-]+\s*(.+)/i, /Lebensdauer\s*[:\-]+\s*(.+)/i, /Alter\s*[:\-]+\s*(.+)/i],
+    description:   [/Beschreibung\s*[:\-]+\s*(.+)/i, /Beschreibung \(DE\)\s*[:\-]+\s*(.+)/i],
+    fun_fact:      [/Fun Fact\s*[:\-]+\s*(.+)/i, /Fun-Fact\s*[:\-]+\s*(.+)/i, /Wusstest du\?\s*(.+)/i, /Wusstest du\s*[:\-]+\s*(.+)/i, /Interessantes\s*[:\-]+\s*(.+)/i],
+    tags:          [/Tags?\s*[:\-]+\s*(.+)/i, /Kategori(?:e|en)\s*[:\-]+\s*(.+)/i, /Schlagwörter\s*[:\-]+\s*(.+)/i],
+    behavior:      [/Verhalten\s*[:\-]+\s*(.+)/i, /Lebensweise\s*[:\-]+\s*(.+)/i, /Sozialverhalten\s*[:\-]+\s*(.+)/i],
+    threat_status: [/Bedrohung(?:sstatus)?\s*[:\-]+\s*(.+)/i, /Schutzstatus\s*[:\-]+\s*(.+)/i, /Gefährdung(?:sgrad)?\s*[:\-]+\s*(.+)/i, /Rote Liste\s*[:\-]+\s*(.+)/i],
+    name_en:       [/Name \(EN\)\s*[:\-]+\s*(.+)/i, /English Name\s*[:\-]+\s*(.+)/i, /Englischer Name\s*[:\-]+\s*(.+)/i],
+    rarity_hint:   [/Seltenheit\s*[:\-]+\s*(.+)/i, /Rarität\s*[:\-]+\s*(.+)/i, /Rarity\s*[:\-]+\s*(.+)/i],
+    description_en:[/Beschreibung \(EN\)\s*[:\-]+\s*(.+)/i, /Description\s*[:\-]+\s*(.+)/i, /Description \(EN\)\s*[:\-]+\s*(.+)/i],
+    fun_fact_en:      [/Fun Fact \(EN\)\s*[:\-]+\s*(.+)/i, /Fun-Fact \(EN\)\s*[:\-]+\s*(.+)/i],
+    behavior_en:      [/Verhalten \(EN\)\s*[:\-]+\s*(.+)/i, /Behavior\s*[:\-]+\s*(.+)/i, /Behaviour\s*[:\-]+\s*(.+)/i],
+    threat_status_en: [/Bedrohung \(EN\)\s*[:\-]+\s*(.+)/i, /Threat Status\s*[:\-]+\s*(.+)/i, /Threat\s*[:\-]+\s*(.+)/i],
+  };
+
+  for (const line of lines) {
+    for (const [field, regexes] of Object.entries(patterns)) {
+      for (const rx of regexes) {
+        const m = line.match(rx);
+        if (m) {
+          const val = m[1].trim();
+          if (field === 'tags') {
+            result.tags = val.split(/[,;]/).map(t => t.trim()).filter(Boolean);
+          } else if (field === 'rarity_hint') {
+            // Map common rarity terms to our values
+            const v = val.toLowerCase();
+            if (v.includes('legendär') || v.includes('legendary')) result.rarity = 'legendaer';
+            else if (v.includes('episch') || v.includes('epic')) result.rarity = 'episch';
+            else if (v.includes('selten') || v.includes('rare')) result.rarity = 'selten';
+            else result.rarity = 'standard';
+          } else if (!result[field]) {
+            result[field] = val;
+          }
+          break;
+        }
+      }
+    }
+  }
+  return result;
+}
+
+// ── BULK IMPORT MODAL ────────────────────────────────────────
+function BulkImportModal() {
+  const overlay = el('div', {'class':'modal-overlay'});
+  const modal   = el('div', {'class':'modal fade'});
+  
+  const textarea = el('textarea', {
+    placeholder: `Füge hier einen oder mehrere Tier-Texte ein. Trenne mehrere Tiere mit einer Leerzeile.
+
+Unterstützte Felder:
+Name (1. Zeile oder "Name: ...")
+Lateinischer Name: ...
+Lebensraum: ...
+Ernährung: ...
+Gewicht: ...
+Lebenserwartung: ...
+Beschreibung: ...
+Fun Fact: ...
+Verhalten: ...
+Bedrohung: ...
+Tags: Reptil, Wasser
+Name (EN): ...
+Beschreibung (EN): ...
+Fun Fact (EN): ...`,
+    rows: 15,
+    style: 'font-family: monospace; font-size: 13px;'
+  });
+
+  const previewDiv = el('div', {style: 'margin-top: 16px;'});
+  let parsedAnimals = [];
+
+  function updatePreview() {
+    const text = textarea.value;
+    const blocks = text.split(/\n\s*\n/).filter(b => b.trim());
+    parsedAnimals = blocks.map(parseAnimalText).filter(a => a.name);
+    
+    previewDiv.innerHTML = '';
+    if (!parsedAnimals.length) return;
+    
+    const title = el('div', {style: 'font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px;'}, 
+      `${parsedAnimals.length} Tier${parsedAnimals.length > 1 ? 'e' : ''} erkannt`);
+    previewDiv.appendChild(title);
+    
+    parsedAnimals.forEach((a, i) => {
+      const card = el('div', {style: 'background: var(--surface2); border-radius: 8px; padding: 12px; margin-bottom: 8px; border-left: 3px solid var(--accent);'});
+      card.innerHTML = `
+        <div style="font-weight:700;color:var(--text);margin-bottom:4px">${a.name}</div>
+        <div style="font-size:12px;color:var(--muted);font-style:italic;margin-bottom:6px">${a.latin||'—'}</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)">
+          ${a.habitat?`<span>🌍 ${a.habitat}</span>`:''}
+          ${a.diet?`<span>🍃 ${a.diet}</span>`:''}
+          ${a.weight?`<span>⚖️ ${a.weight}</span>`:''}
+          ${a.tags.length?`<span>🏷 ${a.tags.join(', ')}</span>`:''}
+        </div>
+      `;
+      previewDiv.appendChild(card);
+    });
+  }
+
+  textarea.addEventListener('input', updatePreview);
+
+  modal.append(
+    el('div', {'class':'modal-header'},
+      el('div', {'class':'modal-title'}, '📋 Text-Import'),
+      el('button', {'class':'btn btn-ghost', onclick:()=>overlay.remove()}, '✕'),
+    ),
+    el('div', {'class':'modal-body'},
+      el('div', {style:'font-size:13px;color:var(--muted);margin-bottom:12px'}, 
+        'Füge einen Tier-Text ein (z.B. von einer anderen KI). Mehrere Tiere durch Leerzeile trennen.'),
+      textarea,
+      previewDiv,
+    ),
+    el('div', {'class':'modal-footer'},
+      el('button', {'class':'btn btn-secondary', onclick:()=>overlay.remove()}, 'Abbrechen'),
+      el('button', {'class':'btn btn-primary', onclick: async () => {
+        updatePreview();
+        if (!parsedAnimals.length) { alert('Keine Tiere erkannt.'); return; }
+        for (const animal of parsedAnimals) {
+          await saveAnimal({ ...animal, rarity: animal.rarity || 'standard', tags: animal.tags || [], visible: true });
+        }
+        overlay.remove();
+      }}, `✓ ${parsedAnimals.length || ''} Tiere importieren`),
+    ),
+  );
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target===overlay) overlay.remove(); });
+}
+
+function AchievementModal(ach={}) {
+  let form = { id:ach.id||null, title:ach.title||'', description:ach.description||'', icon:ach.icon||'🏆', tag:ach.tag||'' };
+  const overlay = el('div', {'class':'modal-overlay'});
+  const modal   = el('div', {'class':'modal fade'});
+  const QUICK_TAGS = [
+    {v:'_all',label:'Alle Tiere'},
+    {v:'_legendaer',label:'Alle Legendären'},
+    ...([...new Set(state.animals.flatMap(a=>a.tags||[]))].map(t=>({v:t,label:t}))),
+    ...([...new Set(state.animals.map(a=>a.diet).filter(Boolean))].map(d=>({v:`_diet_${d}`,label:`Alle: ${d}`}))),
+  ];
+  const tagInp = el('input',{type:'text',value:form.tag,oninput:e=>form.tag=e.target.value,placeholder:'Tag eingeben oder oben wählen'});
+  const quickWrap = el('div',{style:{display:'flex',flexWrap:'wrap',gap:'6px',marginBottom:'8px'}},
+    ...QUICK_TAGS.map(qt => el('button',{'class':'btn btn-sm btn-secondary',onclick:()=>{form.tag=qt.v;tagInp.value=qt.v;}},'#'+qt.label))
+  );
+  modal.append(
+    el('div',{'class':'modal-header'},
+      el('div',{'class':'modal-title'}, ach.id?`Bearbeiten: ${ach.title}`:'Neues Achievement'),
+      el('button',{'class':'btn btn-ghost',onclick:()=>overlay.remove()},'✕'),
+    ),
+    el('div',{'class':'modal-body'},
+      el('div',{'class':'form-grid'},
+        el('div',{'class':'form-row'},el('label',{},'Titel *'),el('input',{type:'text',value:form.title,oninput:e=>form.title=e.target.value})),
+        el('div',{'class':'form-row'},el('label',{},'Icon (Emoji)'),el('input',{type:'text',value:form.icon,oninput:e=>form.icon=e.target.value,style:{fontSize:'22px',textAlign:'center'}})),
+      ),
+      el('div',{'class':'form-row'},el('label',{},'Beschreibung'),el('textarea',{oninput:e=>form.description=e.target.value},form.description)),
+      el('div',{'class':'form-row'},el('label',{},'Bedingung (Tag)'), quickWrap, tagInp),
+    ),
+    el('div',{'class':'modal-footer'},
+      el('button',{'class':'btn btn-secondary',onclick:()=>overlay.remove()},'Abbrechen'),
+      el('button',{'class':'btn btn-primary',onclick:async()=>{await saveAchievement(form);overlay.remove();}},'Speichern'),
+    ),
+  );
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
+}
+
+function ZooModal(zoo={}) {
+  let form = {
+    id:zoo.id||null, key:zoo.key||'', name:zoo.name||'', tagline:zoo.tagline||'', tagline_en:zoo.tagline_en||'',
+    emoji:zoo.emoji||'🦁', color:zoo.color||'#2D6A4F', accent:zoo.accent||'#95D5B2',
+    description:zoo.description||'', description_en:zoo.description_en||'', website:zoo.website||'',
+    image_url:zoo.image_url||'',
+  };
+  const overlay = el('div',{'class':'modal-overlay'});
+  const modal   = el('div',{'class':'modal fade'});
+  const inputs  = {};
+  ['key','name','tagline','tagline_en','emoji','color','accent','website','image_url'].forEach(k=>{
+    inputs[k]=el('input',{type:'text',value:form[k]||'',oninput:e=>form[k]=e.target.value});
+  });
+  inputs.description    = el('textarea',{rows:3,placeholder:'Kurzbeschreibung auf Deutsch (erscheint in der App)',oninput:e=>form.description=e.target.value},form.description||'');
+  inputs.description_en = el('textarea',{rows:3,placeholder:'Short description in English (shown when language is EN)',oninput:e=>form.description_en=e.target.value},form.description_en||'');
+
+  // Color preview
+  function buildColorPreview() {
+    return el('div',{style:{background:form.color,borderRadius:'8px',padding:'12px 16px',marginBottom:'12px',display:'flex',alignItems:'center',gap:'10px'}},
+      el('span',{style:{fontSize:'24px'}},form.emoji),
+      el('div',{},
+        el('div',{style:{fontWeight:'700',color:'#FFF',fontSize:'16px'}},form.name||'Vorschau'),
+        el('div',{style:{color:form.accent,fontSize:'12px'}},form.tagline||'Tagline'),
+      )
+    );
+  }
+  let preview = buildColorPreview();
+  // Rebuild preview on input
+  ['name','tagline','emoji','color','accent'].forEach(k=>{
+    const orig = inputs[k].oninput;
+    inputs[k].addEventListener('input',()=>{
+      form[k]=inputs[k].value;
+      const next=buildColorPreview();
+      preview.replaceWith(next);
+      preview=next;
+    });
+  });
+
+  modal.append(
+    el('div',{'class':'modal-header'},
+      el('div',{'class':'modal-title'},zoo.id?`Bearbeiten: ${zoo.name}`:'Neuer Zoo'),
+      el('button',{'class':'btn btn-ghost',onclick:()=>overlay.remove()},'✕'),
+    ),
+    el('div',{'class':'modal-body'},
+      preview,
+      el('div',{'class':'form-grid'},
+        el('div',{'class':'form-row'},el('label',{},'Interner Key (z.B. zoo_berlin) *'),inputs.key),
+        el('div',{'class':'form-row'},el('label',{},'Name *'),inputs.name),
+      ),
+      el('div',{'class':'form-grid'},
+        el('div',{'class':'form-row'},el('label',{},'Tagline DE (kurz, z.B. "Seit 1844")'),inputs.tagline),
+        el('div',{'class':'form-row'},el('label',{},el('span',{style:{background:'rgba(96,165,250,.1)',color:'var(--blue)',padding:'2px 6px',borderRadius:'4px',fontSize:'11px',marginRight:'4px'}},'EN'),'Tagline EN'),inputs.tagline_en),
+      ),
+      el('div',{'class':'form-row'},el('label',{},'Website URL'),inputs.website),
+      el('div',{'class':'form-grid-3'},
+        el('div',{'class':'form-row'},el('label',{},'Emoji'),inputs.emoji),
+        el('div',{'class':'form-row'},el('label',{},'Hauptfarbe (Hex)'),inputs.color),
+        el('div',{'class':'form-row'},el('label',{},'Akzentfarbe (Hex)'),inputs.accent),
+      ),
+      el('div',{'class':'form-row'},el('label',{},'Zoo-Bild URL (optional)'),inputs.image_url),
+      el('div',{'class':'form-row'},
+        el('label',{},el('span',{style:{background:'rgba(74,222,128,.1)',color:'var(--accent)',padding:'2px 8px',borderRadius:'4px',fontSize:'11px',marginRight:'6px'}},'DE'),'Beschreibung'),
+        inputs.description
+      ),
+      el('div',{'class':'form-row'},
+        el('label',{},el('span',{style:{background:'rgba(96,165,250,.1)',color:'var(--blue)',padding:'2px 8px',borderRadius:'4px',fontSize:'11px',marginRight:'6px'}},'EN'),'Description'),
+        inputs.description_en
+      ),
+    ),
+    el('div',{'class':'modal-footer'},
+      el('button',{'class':'btn btn-secondary',onclick:()=>overlay.remove()},'Abbrechen'),
+      el('button',{'class':'btn btn-primary',onclick:async()=>{
+        for(const k of Object.keys(inputs)){
+          if(inputs[k].value!==undefined) form[k]=inputs[k].value;
+        }
+        await saveZoo(form);
+        overlay.remove();
+      }},'Speichern'),
+    ),
+  );
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
+}
+
+
+// ── CHALLENGE MODAL ──────────────────────────────────────────
+function ChallengeModal(challenge={}) {
+  let form = {
+    id: challenge.id||null,
+    title: challenge.title||'',
+    description: challenge.description||'',
+    icon: challenge.icon||'🎯',
+    animal1_id: challenge.animal1_id||'',
+    animal2_id: challenge.animal2_id||'',
+    type: challenge.type||'compare', // compare | sequence | collection
+  };
+
+  const overlay = el('div',{'class':'modal-overlay'});
+  const modal   = el('div',{'class':'modal fade'});
+  const animals = state.animals;
+
+  function animalSelect(field, label) {
+    const sel = el('select',{'class':'zoo-select',style:'width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:8px;font-size:14px;',
+      onchange: e => form[field] = e.target.value});
+    sel.appendChild(el('option',{value:''},'— '+label+' wählen —'));
+    animals.forEach(a => {
+      const opt = el('option',{value:a.id}, `${RARITY[a.rarity]?.icon||''} ${a.name}`);
+      if (form[field] === a.id) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    return sel;
+  }
+
+  const titleInp = el('input',{type:'text',value:form.title,placeholder:'z.B. Großkatzen-Duell',oninput:e=>form.title=e.target.value});
+  const descInp  = el('textarea',{placeholder:'Kurze Beschreibung der Challenge',oninput:e=>form.description=e.target.value,rows:2},form.description);
+  const iconInp  = el('input',{type:'text',value:form.icon,oninput:e=>form.icon=e.target.value,style:'width:60px;text-align:center;font-size:22px;'});
+
+  modal.append(
+    el('div',{'class':'modal-header'},
+      el('div',{'class':'modal-title'},challenge.id?'Challenge bearbeiten':'Neue Challenge'),
+      el('button',{'class':'btn btn-ghost',onclick:()=>overlay.remove()},'✕'),
+    ),
+    el('div',{'class':'modal-body'},
+      el('div',{'class':'form-grid'},
+        el('div',{'class':'form-row'},el('label',{},'Titel *'),titleInp),
+        el('div',{'class':'form-row'},el('label',{},'Icon'),iconInp),
+      ),
+      el('div',{'class':'form-row'},el('label',{},'Beschreibung'),descInp),
+      el('div',{'class':'form-row'},
+        el('label',{},'Typ'),
+        el('select',{'class':'zoo-select',style:'width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:8px;',
+          onchange:e=>form.type=e.target.value},
+          el('option',{value:'compare'},'🆚 Vergleich – zwei Tiere nebeneinander fotografieren'),
+          el('option',{value:'sequence'},'📍 Reihenfolge – Tiere in bestimmter Reihenfolge'),
+          el('option',{value:'collection'},'📦 Sammlung – eine Gruppe Tiere fotografieren'),
+        )
+      ),
+      el('div',{'class':'form-row'},el('label',{},'Tier 1'), animalSelect('animal1_id','Erstes Tier')),
+      el('div',{'class':'form-row'},el('label',{},'Tier 2'), animalSelect('animal2_id','Zweites Tier (optional)')),
+    ),
+    el('div',{'class':'modal-footer'},
+      el('button',{'class':'btn btn-secondary',onclick:()=>overlay.remove()},'Abbrechen'),
+      el('button',{'class':'btn btn-primary',onclick:async()=>{
+        if(!form.title){alert('Bitte Titel eingeben.');return;}
+        // Save to achievements table with type=challenge
+        const payload = {
+          zoo_id: state.currentZoo.id,
+          title: form.title,
+          description: form.description,
+          icon: form.icon,
+          tag: `_challenge_${form.animal1_id}${form.animal2_id?'_'+form.animal2_id:''}`,
+        };
+        let result;
+        if(form.id) result = await db.from('achievements').update(payload).eq('id',form.id).select().single();
+        else result = await db.from('achievements').insert(payload).select().single();
+        if(result.error){setState({alert:{type:'error',msg:result.error.message}});return;}
+        const achievements = form.id
+          ? state.achievements.map(a=>a.id===form.id?result.data:a)
+          : [...state.achievements, result.data];
+        setState({achievements, modal:null, alert:{type:'success',msg:'Challenge gespeichert!'}});
+        setTimeout(()=>setState({alert:null}),3000);
+        overlay.remove();
+      }},'Speichern'),
+    ),
+  );
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
+}
+
+// ── PAGES ────────────────────────────────────────────────────
+function PageDashboard() {
+  const zoo = state.currentZoo;
+  const total = state.animals.length;
+  const leg   = state.animals.filter(a=>a.rarity==='legendaer').length;
+  const epic  = state.animals.filter(a=>a.rarity==='episch').length;
+  const ach   = state.achievements.length;
+  const div = el('div',{'class':'fade'});
+  div.innerHTML = `
+    <div class="topbar">
+      <div><div class="page-title">Dashboard</div><div class="page-sub">${zoo ? zoo.name : 'Kein Zoo ausgewählt'}</div></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-val" style="color:#4ADE80">${total}</div><div class="stat-label">Tiere gesamt</div></div>
+      <div class="stat"><div class="stat-val" style="color:#F59E0B">${leg}</div><div class="stat-label">Legendär</div></div>
+      <div class="stat"><div class="stat-val" style="color:#A78BFA">${epic}</div><div class="stat-label">Episch</div></div>
+      <div class="stat"><div class="stat-val" style="color:#60A5FA">${ach}</div><div class="stat-label">Achievements</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Seltenheits-Verteilung</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+        ${['standard','selten','episch','legendaer'].map(r=>{
+          const n = state.animals.filter(a=>a.rarity===r).length;
+          const pct = total ? Math.round(n/total*100) : 0;
+          const c = {standard:'#9CA3AF',selten:'#3B82F6',episch:'#A855F7',legendaer:'#F59E0B'}[r];
+          return `<div style="background:var(--surface2);border-radius:10px;padding:16px">
+            <div style="font-size:11px;color:${c};letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">${RARITY[r].icon} ${RARITY[r].label}</div>
+            <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${c}"></div></div>
+            <div style="font-size:12px;color:var(--muted);margin-top:6px">${n} Tiere (${pct}%)</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+  return div;
+}
+
+function PageAnimals() {
+  const div = el('div',{'class':'fade'});
+  const topbar = el('div',{'class':'topbar'},
+    el('div',{},
+      el('div',{'class':'page-title'},'Tiere'),
+      el('div',{'class':'page-sub'},`${state.animals.length} Tiere · ${state.currentZoo?.name||''}`),
+    ),
+    el('div',{style:'display:flex;gap:10px'},
+      el('button',{'class':'btn btn-primary',onclick:()=>AnimalModal()},'+ Tier hinzufügen'),
+      el('button',{'class':'btn btn-secondary',onclick:()=>BulkImportModal()},'📋 Text-Import'),
+      el('button',{'class':'btn btn-secondary',style:'padding:9px 12px',title:'Neu laden',onclick:()=>{ setState({loading:true}); switchZoo(state.currentZoo.id); }},'⟳'),
+    ),
+  );
+  div.appendChild(topbar);
+  if (state.alert) {
+    const a = el('div',{'class':`alert alert-${state.alert.type}`}, state.alert.msg);
+    div.appendChild(a);
+  }
+  if (!state.animals.length) {
+    div.appendChild(el('div',{'class':'card empty'},
+      el('div',{'class':'empty-icon'},'🐾'),
+      el('p',{},'Noch keine Tiere. Füge das erste Tier hinzu!'),
+    ));
+    return div;
+  }
+  const sorted = [...state.animals].sort((a,b)=>a.name.localeCompare(b.name,'de'));
+  const tbody = sorted.map(a => {
+    const r = RARITY[a.rarity]||RARITY.standard;
+    const tr = el('tr',{});
+    tr.innerHTML = `
+      <td><strong>${a.name}</strong><br><span class="mono">${a.latin||'—'}</span></td>
+      <td>${badge(a.rarity)}</td>
+      <td>${a.habitat||'—'}</td>
+      <td>${a.diet||'—'}</td>
+      <td>${(a.tags||[]).map(t=>`<span style="background:rgba(74,222,128,.1);color:#4ADE80;padding:2px 8px;border-radius:20px;font-size:11px;margin-right:4px">${t}</span>`).join('')||'—'}</td>
+    `;
+    const actions = el('td',{});
+    actions.appendChild(el('div',{style:{display:'flex',gap:'6px'}},
+      el('button',{'class':'btn btn-sm btn-secondary',onclick:()=>AnimalModal(a)},'✎ Edit'),
+      el('button',{'class':'btn btn-sm btn-danger',onclick:()=>deleteAnimal(a.id)},'✕'),
+    ));
+    tr.appendChild(actions);
+    return tr;
+  });
+  const table = el('div',{'class':'card'},
+    el('div',{'class':'table-wrap'},
+      el('table',{},
+        el('thead',{},el('tr',{},
+          ...['Name','Seltenheit','Lebensraum','Ernährung','Tags',''].map(h=>el('th',{},h))
+        )),
+        el('tbody',{},...tbody),
+      )
+    )
+  );
+  div.appendChild(table);
+  return div;
+}
+
+function PageAchievements() {
+  const div = el('div',{'class':'fade'});
+  div.appendChild(el('div',{'class':'topbar'},
+    el('div',{},
+      el('div',{'class':'page-title'},'Achievements'),
+      el('div',{'class':'page-sub'},`${state.achievements.length} Achievements · ${state.currentZoo?.name||''}`),
+    ),
+    el('button',{'class':'btn btn-primary',onclick:()=>AchievementModal()},'+ Achievement'),
+  ));
+  if (!state.achievements.length) {
+    div.appendChild(el('div',{'class':'card empty'},
+      el('div',{'class':'empty-icon'},'🏆'),
+      el('p',{},'Noch keine Achievements für diesen Zoo.'),
+    ));
+    return div;
+  }
+  state.achievements.forEach(a => {
+    const card = el('div',{'class':'card',style:{display:'flex',alignItems:'center',gap:'16px',padding:'16px 20px'}},
+      el('div',{style:{fontSize:'32px',width:'44px',textAlign:'center',flexShrink:'0'}},a.icon),
+      el('div',{style:{flex:'1'}},
+        el('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'17px',fontWeight:'700',color:'var(--text)'}},a.title),
+        el('div',{style:{fontSize:'13px',color:'var(--muted)',marginTop:'3px'}},a.description||''),
+        el('div',{style:{display:'inline-block',background:'var(--surface2)',color:'var(--muted)',borderRadius:'20px',padding:'2px 10px',fontSize:'11px',fontFamily:"'DM Mono',monospace",marginTop:'6px'}},a.tag),
+      ),
+      el('div',{style:{display:'flex',gap:'8px'}},
+        el('button',{'class':'btn btn-sm btn-secondary',onclick:()=>AchievementModal(a)},'✎ Edit'),
+        el('button',{'class':'btn btn-sm btn-danger',onclick:()=>deleteAchievement(a.id)},'✕'),
+      ),
+    );
+    div.appendChild(card);
+  });
+  return div;
+}
+
+function PageZoos() {
+  const div = el('div',{'class':'fade'});
+  div.appendChild(el('div',{'class':'topbar'},
+    el('div',{},
+      el('div',{'class':'page-title'},'Zoos verwalten'),
+      el('div',{'class':'page-sub'},`${state.zoos.length} Zoos · Klicke auf einen Zoo um ihn zu bearbeiten`),
+    ),
+    el('button',{'class':'btn btn-primary',onclick:()=>ZooModal()},'+ Zoo hinzufügen'),
+  ));
+  if (!state.zoos.length) {
+    div.appendChild(el('div',{'class':'card empty'},
+      el('div',{'class':'empty-icon'},'🗺️'),
+      el('p',{},'Noch keine Zoos. Füge den ersten Zoo hinzu!'),
+    ));
+    return div;
+  }
+  state.zoos.forEach(z => {
+    const card = el('div',{'class':'card',style:{marginBottom:'16px',padding:'0',overflow:'hidden'}});
+    // Color bar header
+    const header = el('div',{style:{background:z.color,padding:'20px 24px',display:'flex',alignItems:'center',gap:'16px'}});
+    header.innerHTML = `
+      <div style="font-size:36px;flex-shrink:0">${z.emoji}</div>
+      <div style="flex:1">
+        <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:#FFF">${z.name}</div>
+        <div style="font-size:12px;color:${z.accent};margin-top:2px">${z.tagline||''}</div>
+      </div>
+    `;
+    const body = el('div',{style:{padding:'20px 24px'}});
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+        <div>
+          <div style="font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Interner Key</div>
+          <div style="font-family:'DM Mono',monospace;font-size:13px;color:var(--text)">${z.key}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Website</div>
+          <div style="font-size:13px;color:var(--blue)">${z.website||'—'}</div>
+        </div>
+      </div>
+      ${z.description ? `
+      <div style="margin-bottom:10px">
+        <div style="font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">
+          <span style="background:rgba(74,222,128,.1);color:var(--accent);padding:1px 6px;border-radius:4px;margin-right:4px;font-size:10px">DE</span>Beschreibung
+        </div>
+        <div style="font-size:13px;color:var(--text);line-height:1.6">${z.description}</div>
+      </div>` : ''}
+      ${z.description_en ? `
+      <div>
+        <div style="font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">
+          <span style="background:rgba(96,165,250,.1);color:var(--blue);padding:1px 6px;border-radius:4px;margin-right:4px;font-size:10px">EN</span>Description
+        </div>
+        <div style="font-size:13px;color:var(--text);line-height:1.6">${z.description_en}</div>
+      </div>` : ''}
+    `;
+    const footer = el('div',{style:{padding:'0 24px 20px',display:'flex',gap:'10px',justifyContent:'flex-end'}});
+    footer.appendChild(el('button',{'class':'btn btn-secondary',onclick:()=>ZooModal(z)},'✎ Zoo bearbeiten'));
+    footer.appendChild(el('button',{'class':'btn btn-danger btn-sm',onclick:()=>deleteZoo(z.id)},'✕ Zoo löschen'));
+    card.append(header, body, footer);
+    div.appendChild(card);
+  });
+  return div;
+}
+
+function PageSettings() {
+  const div = el('div',{'class':'fade'});
+  div.appendChild(el('div',{'class':'topbar'},el('div',{},el('div',{'class':'page-title'},'Einstellungen'))));
+  // Password change
+  const pwCard = el('div',{'class':'card',style:{marginBottom:'16px'}});
+  pwCard.innerHTML = `<div class="card-title">🔒 Passwort ändern</div>`;
+  const currentInp = el('input',{type:'password',placeholder:'Aktuelles Passwort'});
+  const newInp     = el('input',{type:'password',placeholder:'Neues Passwort (min. 6 Zeichen)'});
+  const confirmInp = el('input',{type:'password',placeholder:'Wiederholen'});
+  const statusEl   = el('div',{});
+  const saveBtn    = el('button',{'class':'btn btn-primary',style:{marginTop:'16px'},onclick:()=>{
+    if (currentInp.value !== getAdminPw()) { statusEl.className='alert alert-error'; statusEl.textContent='Falsches aktuelles Passwort.'; return; }
+    if (newInp.value.length < 6) { statusEl.className='alert alert-error'; statusEl.textContent='Mindestens 6 Zeichen.'; return; }
+    if (newInp.value !== confirmInp.value) { statusEl.className='alert alert-error'; statusEl.textContent='Passwörter stimmen nicht überein.'; return; }
+    localStorage.setItem(ADMIN_PASSWORD_KEY, newInp.value);
+    statusEl.className='alert alert-success'; statusEl.textContent='✓ Passwort geändert!';
+    currentInp.value=''; newInp.value=''; confirmInp.value='';
+  }},'Passwort ändern');
+  pwCard.append(
+    el('div',{'class':'form-row',style:{marginTop:'16px'}},el('label',{},'Aktuelles Passwort'),currentInp),
+    el('div',{'class':'form-row'},el('label',{},'Neues Passwort'),newInp),
+    el('div',{'class':'form-row'},el('label',{},'Bestätigen'),confirmInp),
+    statusEl, saveBtn,
+  );
+  // Info card
+  const infoCard = el('div',{'class':'card'});
+  infoCard.innerHTML = `
+    <div class="card-title">ℹ️ App-Info</div>
+    <table style="width:100%">
+      <tr><td style="padding:10px 0;color:var(--muted);font-size:13px;border-bottom:1px solid var(--border)">Version</td><td style="font-weight:600;font-size:13px;border-bottom:1px solid var(--border)">1.0.0</td></tr>
+      <tr><td style="padding:10px 0;color:var(--muted);font-size:13px;border-bottom:1px solid var(--border)">Supabase URL</td><td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border)">${SUPABASE_URL}</td></tr>
+      <tr><td style="padding:10px 0;color:var(--muted);font-size:13px">Admin-Passwort</td><td style="font-size:13px">${localStorage.getItem(ADMIN_PASSWORD_KEY)?'Individuell gesetzt':'Standard'}</td></tr>
+    </table>
+  `;
+  div.append(pwCard, infoCard);
+  return div;
+}
+
+// ── MAIN RENDER ──────────────────────────────────────────────
+function render() {
+  const root = document.getElementById('root');
+  root.innerHTML = '';
+
+  // LOGIN
+  if (!state.loggedIn) {
+    const wrap = el('div',{'class':'login-wrap'});
+    const card = el('div',{'class':'card login-card'});
+    const logo = el('div',{'class':'login-logo'});
+    logo.innerHTML = `<h1>Zoo<span>Dex</span></h1><p>Admin-Panel</p>`;
+    const pwInp = el('input',{type:'password',placeholder:'Passwort',
+      onkeydown:e=>{ if(e.key==='Enter') login(pwInp.value); },
+      style:{marginBottom:'12px'}});
+    const errEl = el('div',{'class':state.alert?`alert alert-${state.alert.type}`:''},state.alert?.msg||'');
+    const btnEl = el('button',{'class':'btn btn-primary',style:{width:'100%',padding:'12px'},
+      onclick:()=>login(pwInp.value)},'Anmelden');
+    card.append(logo, el('div',{'class':'form-row',style:{marginTop:'24px'}},el('label',{},'Passwort'),pwInp), errEl, btnEl);
+    wrap.appendChild(card);
+    root.appendChild(wrap);
+    setTimeout(()=>pwInp.focus(),50);
+    return;
+  }
+
+  // SHELL
+  const shell = el('div',{'class':'shell'});
+
+  // SIDEBAR
+  const sidebar = el('div',{'class':'sidebar'});
+  const logoEl = el('div',{'class':'logo'});
+  logoEl.innerHTML = `<div class="logo-title">Zoo<span>Dex</span></div><div class="logo-sub">Admin-Panel</div>`;
+  const nav = el('div',{'class':'nav'});
+  nav.innerHTML = `<div class="nav-section">Übersicht</div>`;
+  const navItems = [
+    ['dashboard','📊','Dashboard'],
+    ['animals','🐾','Tiere'],
+    ['achievements','🏆','Achievements'],
+    ['zoos','🗺️','Zoos'],
+    ['settings','⚙️','Einstellungen'],
+  ];
+  navItems.forEach(([page,icon,label])=>{
+    const item = el('button',{'class':`nav-item${state.page===page?' active':''}`,onclick:()=>setState({page})},
+      el('span',{'class':'icon'},icon), label,
+    );
+    nav.appendChild(item);
+  });
+  nav.appendChild(el('div',{'class':'nav-section'},'Account'));
+  nav.appendChild(el('button',{'class':'nav-item',onclick:logout},el('span',{'class':'icon'},'→'),'Abmelden'));
+
+  const zooSwitch = el('div',{'class':'zoo-switcher'});
+  const sel = el('select',{'class':'zoo-select',onchange:e=>switchZoo(e.target.value)});
+  state.zoos.forEach(z=>{
+    const opt = el('option',{value:z.id},z.name);
+    if (state.currentZoo?.id===z.id) opt.selected=true;
+    sel.appendChild(opt);
+  });
+  zooSwitch.appendChild(sel);
+  sidebar.append(logoEl, nav, zooSwitch);
+
+  // MAIN
+  const main = el('div',{'class':'main'});
+  if (state.loading) {
+    main.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:200px;color:var(--muted)"><span class="spin" style="font-size:32px">⟳</span></div>';
+  } else {
+    const pages = { dashboard:PageDashboard, animals:PageAnimals, achievements:PageAchievements, zoos:PageZoos, settings:PageSettings };
+    const Page = pages[state.page] || PageDashboard;
+    main.appendChild(Page());
+  }
+
+  // Mobile nav
+  const mobileNav = el('div',{'class':'mobile-nav'});
+  [['dashboard','📊','Dashboard'],['animals','🐾','Tiere'],['achievements','🏆','Quests'],['zoos','🗺','Zoos'],['settings','⚙','Einstellungen']].forEach(([page,icon,label])=>{
+    const btn = el('button',{'class':state.page===page?'active':'',onclick:()=>setState({page})},
+      el('span',{style:'font-size:20px'},icon), label
+    );
+    mobileNav.appendChild(btn);
+  });
+  shell.append(sidebar, main, mobileNav);
+  root.appendChild(shell);
+}
+
+// ── INIT ─────────────────────────────────────────────────────
+if (sessionStorage.getItem('zoodex_auth')) {
+  state.loggedIn = true;
+  render();
+  loadAll();
+} else {
+  render();
+}
+</script>
+</body>
+</html>
