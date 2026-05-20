@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZooDex – Datenschutzerklärung</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 0 auto; padding: 32px 20px; color: #1a1a1a; line-height: 1.7; }
+  h1 { color: #2D6A4F; }
+  h2 { color: #2D6A4F; margin-top: 32px; font-size: 18px; }
+  .lang { display: flex; gap: 12px; margin-bottom: 32px; }
+  .lang a { color: #2D6A4F; font-weight: 600; text-decoration: none; }
+  .section { display: none; }
+  .section.active { display: block; }
+  .badge { background: #E8F5EF; color: #2D6A4F; padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+  hr { border: none; border-top: 1px solid #eee; margin: 32px 0; }
+</style>
+</head>
+<body>
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+  <span style="font-size:40px">🦁</span>
+  <h1 style="margin:0">ZooDex</h1>
+</div>
+
+<div class="lang">
+  <a href="#" onclick="show('de')">🇩🇪 Deutsch</a>
+  <a href="#" onclick="show('en')">🇬🇧 English</a>
+</div>
+
+<div id="de" class="section active">
+  <span class="badge">Letzte Aktualisierung: Mai 2026</span>
+  <h2>1. Verantwortlicher</h2>
+  <p>Lars Zoodex<br>E-Mail: <a href="mailto:lars.zoodex@gmail.com">lars.zoodex@gmail.com</a></p>
+
+  <h2>2. Welche Daten werden erfasst?</h2>
+  <p><strong>Anonyme Geräte-ID:</strong> Beim ersten Start wird eine zufällige ID erstellt. Sie ist nicht mit deiner Person verknüpft.</p>
+  <p><strong>Fotos:</strong> Fotos werden ausschließlich lokal auf deinem Gerät gespeichert und nicht hochgeladen.</p>
+  <p><strong>Nutzungsstatistiken:</strong> Wir erfassen anonym welche Zoos besucht wurden (ohne Personenbezug).</p>
+  <p><strong>Keine persönlichen Daten:</strong> Wir erfassen keine Namen, E-Mail-Adressen oder Standortdaten.</p>
+
+  <h2>3. Zweck der Verarbeitung</h2>
+  <p>Die Daten werden ausschließlich genutzt um deinen Sammelfortschritt zu speichern und die App zu verbessern.</p>
+
+  <h2>4. Datenspeicherung</h2>
+  <p>Fotos bleiben lokal auf deinem Gerät. Fortschrittsdaten werden auf Supabase-Servern (EU) gespeichert. Supabase ist DSGVO-konform.</p>
+
+  <h2>5. Berechtigungen</h2>
+  <p><strong>Kamera:</strong> Um Tierfotos aufzunehmen.<br>
+  <strong>Fotobibliothek:</strong> Um Fotos aus der Galerie hinzuzufügen.</p>
+
+  <h2>6. Deine Rechte</h2>
+  <p>Du kannst alle Daten jederzeit in der App unter Profil → Einstellungen → Daten löschen entfernen. Für weitere Anfragen: <a href="mailto:lars.zoodex@gmail.com">lars.zoodex@gmail.com</a></p>
+</div>
+
+<div id="en" class="section">
+  <span class="badge">Last updated: May 2026</span>
+  <h2>1. Controller</h2>
+  <p>Lars Zoodex<br>Email: <a href="mailto:lars.zoodex@gmail.com">lars.zoodex@gmail.com</a></p>
+
+  <h2>2. Data Collected</h2>
+  <p><strong>Anonymous Device ID:</strong> A random ID is created on first launch. It is not linked to your person.</p>
+  <p><strong>Photos:</strong> Photos are stored exclusively on your local device and are not uploaded.</p>
+  <p><strong>Usage Statistics:</strong> We anonymously track which zoos were visited (no personal reference).</p>
+  <p><strong>No personal data:</strong> We do not collect names, email addresses or location data.</p>
+
+  <h2>3. Purpose</h2>
+  <p>Data is used solely to save your collection progress and improve the app.</p>
+
+  <h2>4. Data Storage</h2>
+  <p>Photos stay local on your device. Progress data is stored on Supabase servers (EU). Supabase is GDPR compliant.</p>
+
+  <h2>5. Permissions</h2>
+  <p><strong>Camera:</strong> To take photos of animals.<br>
+  <strong>Photo Library:</strong> To add photos from gallery.</p>
+
+  <h2>6. Your Rights</h2>
+  <p>You can delete all data at any time in the app under Profile → Settings → Delete Data. For further requests: <a href="mailto:lars.zoodex@gmail.com">lars.zoodex@gmail.com</a></p>
+</div>
+
+<script>
+function show(lang) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById(lang).classList.add('active');
+}
+</script>
+</body>
+</html>
