@@ -957,84 +957,147 @@ function ChallengeModal(challenge={}) {
 
 
 // ── PAGE STATS ────────────────────────────────────────────────
-const GLOBAL_BADGE_DEFINITIONS = [
-  { id: 'first_zoo',   icon: '🗺️', label: 'Erster Zoo',          desc: 'Ersten Zoo besucht' },
-  { id: 'first_photo', icon: '📷', label: 'Erster Schnappschuss', desc: 'Erstes Tier fotografiert' },
-  { id: 'photos_10',   icon: '🌟', label: 'Sammler',              desc: '10 Tiere fotografiert' },
-  { id: 'photos_25',   icon: '🏅', label: 'Entdecker',            desc: '25 Tiere fotografiert' },
-  { id: 'photos_50',   icon: '🥇', label: 'Tierfreund',           desc: '50 Tiere fotografiert' },
-  { id: 'legendary',   icon: '👑', label: 'Legendenjäger',        desc: 'Legendäres Tier entdeckt' },
-  { id: 'two_zoos',    icon: '🌍', label: 'Weltenbummler',        desc: '2 verschiedene Zoos besucht' },
-  { id: 'all_rarity',  icon: '💎', label: 'Vollständig',          desc: 'Alle Seltenheitsstufen fotografiert' },
-];
-
-function PageBadges() {
+async function PageBadges() {
   const div = el('div', {'class':'fade'});
+
+  const { data: badges } = await db.from('badge_definitions').select('*').order('sort_order');
+  const allBadges = badges || [];
+
   div.appendChild(el('div', {'class':'topbar'},
-    el('div', {}, el('div', {'class':'page-title'}, '🏅 Badges verwalten')),
-    el('button', {'class':'btn btn-primary', onclick:()=>BadgeModal()}, '+ Neues Badge'),
+    el('div', {},
+      el('div', {'class':'page-title'}, '🏅 Badges verwalten'),
+      el('div', {'class':'page-sub'}, `${allBadges.length} Badges · werden automatisch in der App vergeben`),
+    ),
+    el('button', {'class':'btn btn-primary', onclick:()=>BadgeModal({}, () => setState({page:'badges'}))}, '+ Neues Badge'),
   ));
 
-  div.appendChild(el('p', {style:'color:var(--muted);font-size:13px;margin-bottom:20px'},
-    'Globale Badges werden automatisch in der App vergeben. Du kannst hier neue hinzufügen oder bestehende bearbeiten.'
-  ));
+  const CONDITION_LABELS = {
+    'photo_count':     '📷 Anzahl Fotos',
+    'zoo_count':       '🗺️ Anzahl Zoos',
+    'rarity':          '⭐ Seltenheit',
+    'all_rarity':      '💎 Alle Seltenheiten',
+    'specific_animal': '🐾 Bestimmtes Tier',
+  };
 
-  GLOBAL_BADGE_DEFINITIONS.forEach(badge => {
-    const card = el('div', {'class':'card', style:'display:flex;align-items:center;gap:16px;padding:16px 20px;margin-bottom:10px'});
+  allBadges.forEach(badge => {
+    const card = el('div', {'class':'card', style:`display:flex;align-items:center;gap:16px;padding:16px 20px;margin-bottom:10px;opacity:${badge.active?1:0.5}`});
     card.innerHTML = `
       <div style="font-size:36px;width:52px;text-align:center">${badge.icon}</div>
       <div style="flex:1">
-        <div style="font-weight:700;color:var(--text);font-size:16px">${badge.label}</div>
-        <div style="color:var(--muted);font-size:13px;margin-top:2px">${badge.desc}</div>
-        <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:4px">ID: ${badge.id}</div>
+        <div style="font-weight:700;color:var(--text);font-size:16px">${badge.label} ${badge.label_en?`<span style="font-size:12px;color:var(--blue)">(${badge.label_en})</span>`:''}</div>
+        <div style="color:var(--muted);font-size:13px;margin-top:2px">${badge.description||''}</div>
+        <div style="display:flex;gap:12px;margin-top:6px;font-size:11px;color:var(--muted)">
+          <span>${CONDITION_LABELS[badge.condition_type]||badge.condition_type}${badge.condition_value?' = '+badge.condition_value:''}</span>
+          <span style="font-family:'DM Mono',monospace">ID: ${badge.id}</span>
+          ${!badge.active?'<span style="color:#EF4444">● Deaktiviert</span>':''}
+        </div>
       </div>
     `;
-    card.appendChild(el('button', {'class':'btn btn-sm btn-secondary', onclick:()=>BadgeModal(badge)}, '✎ Bearbeiten'));
+    const btnWrap = el('div', {style:'display:flex;gap:8px'});
+    btnWrap.appendChild(el('button', {'class':'btn btn-sm btn-secondary', onclick:()=>BadgeModal(badge, ()=>setState({page:'badges'}))}, '✎'));
+    btnWrap.appendChild(el('button', {'class':'btn btn-sm btn-secondary', onclick:async()=>{
+      await db.from('badge_definitions').update({active:!badge.active}).eq('id',badge.id);
+      setState({page:'badges'});
+    }}, badge.active ? '🙈' : '👁'));
+    card.appendChild(btnWrap);
     div.appendChild(card);
   });
 
   return div;
 }
 
-function BadgeModal(badge={}) {
+function BadgeModal(badge={}, onSave) {
   let form = {
-    id: badge.id || '',
-    icon: badge.icon || '⭐',
-    label: badge.label || '',
-    desc: badge.desc || '',
+    id:              badge.id || '',
+    icon:            badge.icon || '⭐',
+    label:           badge.label || '',
+    label_en:        badge.label_en || '',
+    description:     badge.description || '',
+    description_en:  badge.description_en || '',
+    condition_type:  badge.condition_type || 'photo_count',
+    condition_value: badge.condition_value || '',
+    sort_order:      badge.sort_order || 0,
+    active:          badge.active !== false,
   };
+
   const overlay = el('div', {'class':'modal-overlay'});
   const modal   = el('div', {'class':'modal fade'});
 
   const inputs = {
-    id:    el('input', {type:'text', value:form.id,    placeholder:'z.B. photos_100', oninput:e=>form.id=e.target.value, disabled:!!badge.id}),
-    icon:  el('input', {type:'text', value:form.icon,  placeholder:'Emoji', oninput:e=>form.icon=e.target.value, style:'width:80px;font-size:22px;text-align:center'}),
-    label: el('input', {type:'text', value:form.label, placeholder:'Badge-Name', oninput:e=>form.label=e.target.value}),
-    desc:  el('input', {type:'text', value:form.desc,  placeholder:'Bedingung', oninput:e=>form.desc=e.target.value}),
+    id:             el('input', {type:'text', value:form.id, placeholder:'z.B. photos_100', oninput:e=>form.id=e.target.value, disabled:!!badge.id}),
+    icon:           el('input', {type:'text', value:form.icon, placeholder:'Emoji', oninput:e=>form.icon=e.target.value, style:'width:80px;font-size:22px;text-align:center'}),
+    label:          el('input', {type:'text', value:form.label, placeholder:'Badge-Name DE', oninput:e=>form.label=e.target.value}),
+    label_en:       el('input', {type:'text', value:form.label_en, placeholder:'Badge Name EN', oninput:e=>form.label_en=e.target.value}),
+    description:    el('input', {type:'text', value:form.description, placeholder:'Beschreibung DE', oninput:e=>form.description=e.target.value}),
+    description_en: el('input', {type:'text', value:form.description_en, placeholder:'Description EN', oninput:e=>form.description_en=e.target.value}),
+    condition_value:el('input', {type:'text', value:form.condition_value, placeholder:'z.B. 10 oder legendaer', oninput:e=>form.condition_value=e.target.value}),
+    sort_order:     el('input', {type:'number', value:form.sort_order, oninput:e=>form.sort_order=parseInt(e.target.value)||0}),
   };
+
+  const condSel = el('select', {'class':'zoo-select', style:'width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px;border-radius:8px;', onchange:e=>form.condition_type=e.target.value});
+  [
+    ['photo_count',    '📷 Anzahl Fotos (Wert = Mindestanzahl)'],
+    ['zoo_count',      '🗺️ Anzahl besuchter Zoos (Wert = Mindestanzahl)'],
+    ['rarity',         '⭐ Seltenheit fotografiert (Wert = standard/selten/episch/legendaer)'],
+    ['all_rarity',     '💎 Alle Seltenheitsstufen fotografiert (kein Wert nötig)'],
+    ['specific_animal','🐾 Bestimmtes Tier (Wert = Animal UUID)'],
+  ].forEach(([val, label]) => {
+    const opt = el('option', {value:val}, label);
+    if (form.condition_type === val) opt.selected = true;
+    condSel.appendChild(opt);
+  });
 
   modal.append(
     el('div', {'class':'modal-header'},
-      el('div', {'class':'modal-title'}, badge.id ? 'Badge bearbeiten' : 'Neues Badge'),
+      el('div', {'class':'modal-title'}, badge.id ? `Badge: ${badge.label}` : 'Neues Badge'),
       el('button', {'class':'btn btn-ghost', onclick:()=>overlay.remove()}, '✕'),
     ),
     el('div', {'class':'modal-body'},
       el('div', {'class':'form-grid'},
         el('div', {'class':'form-row'}, el('label',{}, 'Icon'), inputs.icon),
-        el('div', {'class':'form-row'}, el('label',{}, 'Badge ID'), inputs.id),
+        el('div', {'class':'form-row'}, el('label',{}, 'Reihenfolge'), inputs.sort_order),
       ),
-      el('div', {'class':'form-row'}, el('label',{}, 'Name'), inputs.label),
-      el('div', {'class':'form-row'}, el('label',{}, 'Beschreibung / Bedingung'), inputs.desc),
-      el('div', {style:'background:var(--surface2);border-radius:8px;padding:12px;margin-top:4px;font-size:12px;color:var(--muted)'},
-        '💡 Hinweis: Das Badge wird automatisch in der App vergeben sobald du die Badge-ID im App-Code hinterlegst. Neue IDs musst du dem Entwickler mitteilen.'
+      el('div', {'class':'form-grid'},
+        el('div', {'class':'form-row'}, el('label',{}, 'Name DE'), inputs.label),
+        el('div', {'class':'form-row'}, el('label',{}, 'Name EN'), inputs.label_en),
+      ),
+      el('div', {'class':'form-grid'},
+        el('div', {'class':'form-row'}, el('label',{}, 'Beschreibung DE'), inputs.description),
+        el('div', {'class':'form-row'}, el('label',{}, 'Description EN'), inputs.description_en),
+      ),
+      el('div', {'class':'form-row'}, el('label',{}, 'Bedingungstyp'), condSel),
+      el('div', {'class':'form-row'}, el('label',{}, 'Bedingungswert'), inputs.condition_value),
+      !badge.id && el('div', {'class':'form-row'},
+        el('label',{}, 'Badge ID (einmalig, nicht änderbar)'), inputs.id
       ),
     ),
     el('div', {'class':'modal-footer'},
       el('button', {'class':'btn btn-secondary', onclick:()=>overlay.remove()}, 'Abbrechen'),
-      el('button', {'class':'btn btn-primary', onclick:()=>{
-        alert(`Badge "${inputs.label.value}" gespeichert!\n\nHinweis: Um das Badge in der App aktiv zu schalten, muss die ID "${inputs.id.value}" im App-Code eingetragen werden.`);
+      badge.id && el('button', {'class':'btn btn-danger', onclick:async()=>{
+        if(!confirm('Badge wirklich löschen?')) return;
+        await db.from('badge_definitions').delete().eq('id', badge.id);
         overlay.remove();
-      }}, 'Speichern'),
+        if(onSave) onSave();
+      }}, '✕ Löschen'),
+      el('button', {'class':'btn btn-primary', onclick:async()=>{
+        if(!form.label || !form.condition_type) { alert('Name und Bedingungstyp sind Pflicht.'); return; }
+        const payload = {
+          icon: form.icon, label: form.label, label_en: form.label_en||null,
+          description: form.description||null, description_en: form.description_en||null,
+          condition_type: form.condition_type, condition_value: form.condition_value||null,
+          sort_order: form.sort_order, active: true,
+        };
+        if (badge.id) {
+          await db.from('badge_definitions').update(payload).eq('id', badge.id);
+        } else {
+          if(!form.id) { alert('Bitte Badge ID eingeben.'); return; }
+          await db.from('badge_definitions').insert({...payload, id: form.id});
+        }
+        overlay.remove();
+        if(onSave) onSave();
+        setState({alert:{type:'success',msg:'Badge gespeichert!'}, page:'badges'});
+        setTimeout(()=>setState({alert:null}),3000);
+      }}, '✓ Speichern'),
     ),
   );
   overlay.appendChild(modal);
@@ -1452,7 +1515,9 @@ function render() {
       main.appendChild(placeholder);
       PageStats().then(p => { placeholder.replaceWith(p); });
     } else if (state.page === 'badges') {
-      main.appendChild(PageBadges());
+      const placeholder = el('div', {style:'display:flex;align-items:center;justify-content:center;height:200px;color:var(--muted)'}, '🏅 Lädt Badges...');
+      main.appendChild(placeholder);
+      PageBadges().then(p => { placeholder.replaceWith(p); });
     } else {
       const pages = { dashboard:PageDashboard, animals:PageAnimals, achievements:PageAchievements, zoos:PageZoos, settings:PageSettings };
       const Page = pages[state.page] || PageDashboard;
