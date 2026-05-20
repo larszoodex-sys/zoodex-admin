@@ -1587,30 +1587,24 @@ function parseZooText(text) {
       .slice(0,5);
   }
 
-  const patterns = {
-    name:         [/^Name\s*[:\-]+\s*(.+)/i],
-    key:          [/^Kürzel\s*[:\-]+\s*(.+)/i, /^Code\s*[:\-]+\s*(.+)/i, /^Key\s*[:\-]+\s*(.+)/i],
-    tagline:      [/^Tagline\s*[:\-]+\s*(.+)/i, /^Slogan\s*[:\-]+\s*(.+)/i, /^Kurzbeschreibung\s*[:\-]+\s*(.+)/i],
-    tagline_en:   [/^Tagline \(EN\)\s*[:\-]+\s*(.+)/i, /^Slogan \(EN\)\s*[:\-]+\s*(.+)/i],
-    description:  [/^Beschreibung\s*[:\-]+\s*(.+)/i],
-    description_en:[/^Beschreibung \(EN\)\s*[:\-]+\s*(.+)/i, /^Description\s*[:\-]+\s*(.+)/i],
-    emoji:        [/^Emoji\s*[:\-]+\s*(.+)/i, /^Icon\s*[:\-]+\s*(.+)/i],
-    color:        [/^Farbe\s*[:\-]+\s*(.+)/i, /^Color\s*[:\-]+\s*(.+)/i, /^Hauptfarbe\s*[:\-]+\s*(.+)/i],
-    accent:       [/^Akzent\s*[:\-]+\s*(.+)/i, /^Accent\s*[:\-]+\s*(.+)/i],
-    website:      [/^Website\s*[:\-]+\s*(.+)/i, /^URL\s*[:\-]+\s*(.+)/i],
-    image_url:    [/^Bild\s*[:\-]+\s*(.+)/i, /^Image\s*[:\-]+\s*(.+)/i],
-  };
-
   for (const line of lines) {
-    for (const [field, regexes] of Object.entries(patterns)) {
-      for (const rx of regexes) {
-        const m = line.match(rx);
-        if (m && !result[field]) {
-          result[field] = m[1].trim();
-          break;
-        }
-      }
-    }
+    const col = line.indexOf(':');
+    if (col === -1) continue;
+    const rawKey = line.slice(0, col).trim().toLowerCase();
+    const val    = line.slice(col + 1).trim();
+    if (!val) continue;
+
+    if (['kürzel','code','key','kuerzel'].includes(rawKey))         result.key = val.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5);
+    else if (['name'].includes(rawKey))                             result.name = val;
+    else if (['tagline','slogan','kurzbeschreibung'].includes(rawKey)) result.tagline = val;
+    else if (['tagline (en)','slogan (en)'].includes(rawKey))       result.tagline_en = val;
+    else if (['beschreibung'].includes(rawKey))                     result.description = val;
+    else if (['beschreibung (en)','description','description (en)'].includes(rawKey)) result.description_en = val;
+    else if (['emoji','icon'].includes(rawKey))                     result.emoji = val;
+    else if (['farbe','color','hauptfarbe'].includes(rawKey))       result.color = val;
+    else if (['akzent','accent'].includes(rawKey))                  result.accent = val;
+    else if (['website','url'].includes(rawKey))                    result.website = val;
+    else if (['bild','image'].includes(rawKey))                     result.image_url = val;
   }
   return result;
 }
