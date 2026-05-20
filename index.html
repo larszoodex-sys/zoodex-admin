@@ -1113,7 +1113,15 @@ function BadgeModal(badge={}, onSave) {
         const isSelected = form.condition_type === cond.type;
         const card = el('div', {
           style:`border:2px solid ${isSelected?'var(--accent)':'var(--border)'};border-radius:12px;padding:14px;margin-bottom:8px;cursor:pointer;background:${isSelected?'rgba(74,222,128,.08)':'transparent'}`,
-          onclick:()=>{ form.condition_type=cond.type; if(!cond.hasValue)form.condition_value=''; rebuild(); }
+          onclick:(e)=>{ 
+            // Only rebuild if switching to a different condition type
+            if(form.condition_type !== cond.type) {
+              form.condition_type=cond.type; 
+              if(!cond.hasValue) form.condition_value='';
+              else form.condition_value='';
+              rebuild(); 
+            }
+          }
         });
         card.innerHTML = `
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:${isSelected&&cond.hasValue?8:0}px">
