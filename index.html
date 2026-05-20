@@ -955,6 +955,118 @@ function ChallengeModal(challenge={}) {
   overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
 }
 
+
+// ── PAGE STATS ────────────────────────────────────────────────
+async function PageStats() {
+  const div = el('div', {'class':'fade'});
+  div.appendChild(el('div', {'class':'topbar'},
+    el('div', {}, el('div', {'class':'page-title'}, '📈 Statistiken')),
+  ));
+
+  const loading = el('div', {style:'text-align:center;padding:40px;color:var(--muted)'}, 'Lädt...');
+  div.appendChild(loading);
+
+  try {
+    // Total unique devices
+    const { data: devices } = await db.from('analytics_events')
+      .select('device_id').eq('event_type', 'zoo_visit');
+    const uniqueDevices = new Set((devices||[]).map(d => d.device_id)).size;
+
+    // Photos per animal (top 10)
+    const { data: photoEvents } = await db.from('analytics_events')
+      .select('animal_id').eq('event_type', 'photo_taken').not('animal_id', 'is', null);
+    const photoCounts = {};
+    (photoEvents||[]).forEach(e => { photoCounts[e.animal_id] = (photoCounts[e.animal_id]||0) + 1; });
+
+    // Zoo visits
+    const { data: zooVisits } = await db.from('analytics_events')
+      .select('zoo_id').eq('event_type', 'zoo_visit').not('zoo_id', 'is', null);
+    const zooCounts = {};
+    (zooVisits||[]).forEach(e => { zooCounts[e.zoo_id] = (zooCounts[e.zoo_id]||0) + 1; });
+
+    // Events by hour
+    const { data: allEvents } = await db.from('analytics_events')
+      .select('created_at').order('created_at', { ascending: false }).limit(1000);
+    const hourCounts = Array(24).fill(0);
+    (allEvents||[]).forEach(e => {
+      const h = new Date(e.created_at).getHours();
+      hourCounts[h]++;
+    });
+    const peakHour = hourCounts.indexOf(Math.max(...hourCounts));
+
+    // Total photos from user_photos
+    const { count: totalPhotos } = await db.from('user_photos').select('*', { count: 'exact', head: true });
+
+    loading.remove();
+
+    // Stats grid
+    const grid = el('div', {style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:28px'});
+    [
+      { icon:'📱', val: uniqueDevices, label:'Unique Nutzer' },
+      { icon:'📷', val: totalPhotos||0, label:'Fotos gesamt' },
+      { icon:'🗺️', val: state.zoos.length, label:'Aktive Zoos' },
+      { icon:'⏰', val: `${peakHour}:00 Uhr`, label:'Aktivste Stunde' },
+    ].forEach(s => {
+      const card = el('div', {'class':'card', style:'text-align:center;padding:20px'});
+      card.innerHTML = `
+        <div style="font-size:32px;margin-bottom:8px">${s.icon}</div>
+        <div style="font-size:28px;font-weight:700;color:var(--text)">${s.val}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">${s.label}</div>
+      `;
+      grid.appendChild(card);
+    });
+    div.appendChild(grid);
+
+    // Zoo visits ranking
+    if (Object.keys(zooCounts).length) {
+      div.appendChild(el('div', {'class':'page-sub', style:'margin-bottom:12px;font-size:11px;letter-spacing:.08em;text-transform:uppercase'}, 'ZOO-BESUCHE'));
+      const zooCard = el('div', {'class':'card'});
+      const sorted = Object.entries(zooCounts).sort((a,b) => b[1]-a[1]);
+      sorted.forEach(([zooId, count]) => {
+        const zoo = state.zoos.find(z => z.id === zooId);
+        if (!zoo) return;
+        const max = sorted[0][1];
+        const pct = Math.round(count/max*100);
+        const row = el('div', {style:'display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)'});
+        row.innerHTML = `
+          <span style="font-size:22px">${zoo.emoji}</span>
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px">${zoo.name}</div>
+            <div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:${zoo.color};border-radius:3px"></div>
+            </div>
+          </div>
+          <span style="font-size:13px;color:var(--muted);min-width:40px;text-align:right">${count}×</span>
+        `;
+        zooCard.appendChild(row);
+      });
+      div.appendChild(zooCard);
+    }
+
+    // Activity by hour
+    div.appendChild(el('div', {'class':'page-sub', style:'margin:20px 0 12px;font-size:11px;letter-spacing:.08em;text-transform:uppercase'}, 'AKTIVITÄT NACH UHRZEIT'));
+    const hourCard = el('div', {'class':'card', style:'padding:16px'});
+    const maxH = Math.max(...hourCounts, 1);
+    const barWrap = el('div', {style:'display:flex;align-items:flex-end;gap:3px;height:60px'});
+    hourCounts.forEach((c, h) => {
+      const bar = el('div', {
+        style:`flex:1;background:${h===peakHour?'var(--accent)':'var(--surface2)'};border-radius:3px 3px 0 0;height:${Math.max(4,Math.round(c/maxH*60))}px;`,
+        title:`${h}:00 – ${c} Events`
+      });
+      barWrap.appendChild(bar);
+    });
+    const labels = el('div', {style:'display:flex;justify-content:space-between;margin-top:4px'});
+    ['0','6','12','18','23'].forEach(h => labels.appendChild(el('span',{style:'font-size:10px;color:var(--muted)'},h+'h')));
+    hourCard.append(barWrap, labels);
+    div.appendChild(hourCard);
+
+  } catch(e) {
+    loading.textContent = 'Fehler beim Laden der Statistiken: ' + e.message;
+  }
+
+  return div;
+}
+
 // ── PAGES ────────────────────────────────────────────────────
 function PageDashboard() {
   const zoo = state.currentZoo;
@@ -1255,7 +1367,7 @@ function render() {
 
   // Mobile nav
   const mobileNav = el('div',{'class':'mobile-nav'});
-  [['dashboard','📊','Dashboard'],['animals','🐾','Tiere'],['achievements','🏆','Quests'],['zoos','🗺','Zoos'],['settings','⚙','Einstellungen']].forEach(([page,icon,label])=>{
+  [['dashboard','📊','Dashboard'],['animals','🐾','Tiere'],['achievements','🏆','Quests'],['zoos','🗺','Zoos'],['stats','📈','Statistiken'],['settings','⚙','Einstellungen']].forEach(([page,icon,label])=>{
     const btn = el('button',{'class':state.page===page?'active':'',onclick:()=>setState({page})},
       el('span',{style:'font-size:20px'},icon), label
     );
