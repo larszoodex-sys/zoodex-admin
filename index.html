@@ -957,6 +957,91 @@ function ChallengeModal(challenge={}) {
 
 
 // ── PAGE STATS ────────────────────────────────────────────────
+const GLOBAL_BADGE_DEFINITIONS = [
+  { id: 'first_zoo',   icon: '🗺️', label: 'Erster Zoo',          desc: 'Ersten Zoo besucht' },
+  { id: 'first_photo', icon: '📷', label: 'Erster Schnappschuss', desc: 'Erstes Tier fotografiert' },
+  { id: 'photos_10',   icon: '🌟', label: 'Sammler',              desc: '10 Tiere fotografiert' },
+  { id: 'photos_25',   icon: '🏅', label: 'Entdecker',            desc: '25 Tiere fotografiert' },
+  { id: 'photos_50',   icon: '🥇', label: 'Tierfreund',           desc: '50 Tiere fotografiert' },
+  { id: 'legendary',   icon: '👑', label: 'Legendenjäger',        desc: 'Legendäres Tier entdeckt' },
+  { id: 'two_zoos',    icon: '🌍', label: 'Weltenbummler',        desc: '2 verschiedene Zoos besucht' },
+  { id: 'all_rarity',  icon: '💎', label: 'Vollständig',          desc: 'Alle Seltenheitsstufen fotografiert' },
+];
+
+function PageBadges() {
+  const div = el('div', {'class':'fade'});
+  div.appendChild(el('div', {'class':'topbar'},
+    el('div', {}, el('div', {'class':'page-title'}, '🏅 Badges verwalten')),
+    el('button', {'class':'btn btn-primary', onclick:()=>BadgeModal()}, '+ Neues Badge'),
+  ));
+
+  div.appendChild(el('p', {style:'color:var(--muted);font-size:13px;margin-bottom:20px'},
+    'Globale Badges werden automatisch in der App vergeben. Du kannst hier neue hinzufügen oder bestehende bearbeiten.'
+  ));
+
+  GLOBAL_BADGE_DEFINITIONS.forEach(badge => {
+    const card = el('div', {'class':'card', style:'display:flex;align-items:center;gap:16px;padding:16px 20px;margin-bottom:10px'});
+    card.innerHTML = `
+      <div style="font-size:36px;width:52px;text-align:center">${badge.icon}</div>
+      <div style="flex:1">
+        <div style="font-weight:700;color:var(--text);font-size:16px">${badge.label}</div>
+        <div style="color:var(--muted);font-size:13px;margin-top:2px">${badge.desc}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:4px">ID: ${badge.id}</div>
+      </div>
+    `;
+    card.appendChild(el('button', {'class':'btn btn-sm btn-secondary', onclick:()=>BadgeModal(badge)}, '✎ Bearbeiten'));
+    div.appendChild(card);
+  });
+
+  return div;
+}
+
+function BadgeModal(badge={}) {
+  let form = {
+    id: badge.id || '',
+    icon: badge.icon || '⭐',
+    label: badge.label || '',
+    desc: badge.desc || '',
+  };
+  const overlay = el('div', {'class':'modal-overlay'});
+  const modal   = el('div', {'class':'modal fade'});
+
+  const inputs = {
+    id:    el('input', {type:'text', value:form.id,    placeholder:'z.B. photos_100', oninput:e=>form.id=e.target.value, disabled:!!badge.id}),
+    icon:  el('input', {type:'text', value:form.icon,  placeholder:'Emoji', oninput:e=>form.icon=e.target.value, style:'width:80px;font-size:22px;text-align:center'}),
+    label: el('input', {type:'text', value:form.label, placeholder:'Badge-Name', oninput:e=>form.label=e.target.value}),
+    desc:  el('input', {type:'text', value:form.desc,  placeholder:'Bedingung', oninput:e=>form.desc=e.target.value}),
+  };
+
+  modal.append(
+    el('div', {'class':'modal-header'},
+      el('div', {'class':'modal-title'}, badge.id ? 'Badge bearbeiten' : 'Neues Badge'),
+      el('button', {'class':'btn btn-ghost', onclick:()=>overlay.remove()}, '✕'),
+    ),
+    el('div', {'class':'modal-body'},
+      el('div', {'class':'form-grid'},
+        el('div', {'class':'form-row'}, el('label',{}, 'Icon'), inputs.icon),
+        el('div', {'class':'form-row'}, el('label',{}, 'Badge ID'), inputs.id),
+      ),
+      el('div', {'class':'form-row'}, el('label',{}, 'Name'), inputs.label),
+      el('div', {'class':'form-row'}, el('label',{}, 'Beschreibung / Bedingung'), inputs.desc),
+      el('div', {style:'background:var(--surface2);border-radius:8px;padding:12px;margin-top:4px;font-size:12px;color:var(--muted)'},
+        '💡 Hinweis: Das Badge wird automatisch in der App vergeben sobald du die Badge-ID im App-Code hinterlegst. Neue IDs musst du dem Entwickler mitteilen.'
+      ),
+    ),
+    el('div', {'class':'modal-footer'},
+      el('button', {'class':'btn btn-secondary', onclick:()=>overlay.remove()}, 'Abbrechen'),
+      el('button', {'class':'btn btn-primary', onclick:()=>{
+        alert(`Badge "${inputs.label.value}" gespeichert!\n\nHinweis: Um das Badge in der App aktiv zu schalten, muss die ID "${inputs.id.value}" im App-Code eingetragen werden.`);
+        overlay.remove();
+      }}, 'Speichern'),
+    ),
+  );
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+}
+
 async function PageStats() {
   const div = el('div', {'class':'fade'});
   div.appendChild(el('div', {'class':'topbar'},
@@ -1334,6 +1419,8 @@ function render() {
     ['animals','🐾','Tiere'],
     ['achievements','🏆','Achievements'],
     ['zoos','🗺️','Zoos'],
+    ['stats','📈','Statistiken'],
+    ['badges','🏅','Badges'],
     ['settings','⚙️','Einstellungen'],
   ];
   navItems.forEach(([page,icon,label])=>{
@@ -1360,14 +1447,22 @@ function render() {
   if (state.loading) {
     main.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:200px;color:var(--muted)"><span class="spin" style="font-size:32px">⟳</span></div>';
   } else {
-    const pages = { dashboard:PageDashboard, animals:PageAnimals, achievements:PageAchievements, zoos:PageZoos, settings:PageSettings };
-    const Page = pages[state.page] || PageDashboard;
-    main.appendChild(Page());
+    if (state.page === 'stats') {
+      const placeholder = el('div', {style:'display:flex;align-items:center;justify-content:center;height:200px;color:var(--muted)'}, '📈 Lädt Statistiken...');
+      main.appendChild(placeholder);
+      PageStats().then(p => { placeholder.replaceWith(p); });
+    } else if (state.page === 'badges') {
+      main.appendChild(PageBadges());
+    } else {
+      const pages = { dashboard:PageDashboard, animals:PageAnimals, achievements:PageAchievements, zoos:PageZoos, settings:PageSettings };
+      const Page = pages[state.page] || PageDashboard;
+      main.appendChild(Page());
+    }
   }
 
   // Mobile nav
   const mobileNav = el('div',{'class':'mobile-nav'});
-  [['dashboard','📊','Dashboard'],['animals','🐾','Tiere'],['achievements','🏆','Quests'],['zoos','🗺','Zoos'],['stats','📈','Statistiken'],['settings','⚙','Einstellungen']].forEach(([page,icon,label])=>{
+  [['dashboard','📊','Dashboard'],['animals','🐾','Tiere'],['achievements','🏆','Quests'],['zoos','🗺','Zoos'],['stats','📈','Stats'],['badges','🏅','Badges'],['settings','⚙','Einstellungen']].forEach(([page,icon,label])=>{
     const btn = el('button',{'class':state.page===page?'active':'',onclick:()=>setState({page})},
       el('span',{style:'font-size:20px'},icon), label
     );
