@@ -613,12 +613,19 @@ function AnimalModal(animal={}) {
             Object.keys(form).forEach(k => { if(a[k] !== undefined) form[k] = a[k]; });
             form.id = null; form.zoo_id = state.currentZoo?.id;
             // Update all inputs
-            ['name','latin','habitat','diet','weight','lifespan','behavior','threat_status',
-             'name_en','description_en','fun_fact_en','behavior_en','threat_status_en'].forEach(k => {
-              if (inputs[k]) inputs[k].value = form[k] || '';
+            // Copy all fields including EN
+            const allFields = ['name','latin','habitat','diet','weight','lifespan',
+              'behavior','threat_status','rarity','tags','sort_order',
+              'name_en','description_en','fun_fact_en','behavior_en','threat_status_en'];
+            allFields.forEach(k => {
+              if (inputs[k]) inputs[k].value = Array.isArray(form[k]) ? form[k].join(', ') : (form[k] || '');
             });
-            if (inputs.description) inputs.description.value = form.description || '';
-            if (inputs.fun_fact) inputs.fun_fact.value = form.fun_fact || '';
+            if (inputs.description)    inputs.description.value    = form.description || '';
+            if (inputs.fun_fact)       inputs.fun_fact.value       = form.fun_fact || '';
+            if (inputs.description_en) inputs.description_en.value = form.description_en || '';
+            if (inputs.fun_fact_en)    inputs.fun_fact_en.value    = form.fun_fact_en || '';
+            if (inputs.behavior_en)    inputs.behavior_en.value    = form.behavior_en || '';
+            if (inputs.threat_status_en) inputs.threat_status_en.value = form.threat_status_en || '';
             pickOverlay.remove();
           }
         });
@@ -823,43 +830,7 @@ function AchievementModal(ach={}) {
   const overlay = el('div', {'class':'modal-overlay'});
   const modal   = el('div', {'class':'modal fade'});
 
-  async function importAchFromZoo() {
-    const otherZoos = state.zoos.filter(z => z.id !== state.currentZoo?.id);
-    if (!otherZoos.length) { alert('Keine anderen Zoos verfügbar.'); return; }
-    const pickOverlay = el('div', {'class':'modal-overlay', style:'z-index:1100'});
-    const pickModal = el('div', {'class':'modal fade', style:'max-width:420px'});
-    const achList = el('div', {style:'max-height:280px;overflow-y:auto;margin-top:12px'});
-    async function loadAchs(zooId) {
-      achList.innerHTML = '<div style="color:var(--muted);padding:12px">Lädt…</div>';
-      const { data } = await db.from('achievements').select('*').eq('zoo_id', zooId);
-      achList.innerHTML = '';
-      (data||[]).forEach(a => {
-        const row = el('div', {
-          style:'display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;cursor:pointer;',
-          onmouseenter:function(){this.style.background='var(--surface2)'},
-          onmouseleave:function(){this.style.background='transparent'},
-          onclick: () => {
-            form.title=a.title; form.description=a.description; form.icon=a.icon; form.tag=a.tag;
-            titleInp.value=a.title||''; descInp.value=a.description||''; iconInp.value=a.icon||'🏆';
-            pickOverlay.remove();
-          }
-        });
-        row.innerHTML = `<span style="font-size:24px">${a.icon||'🏆'}</span><div><div style="font-weight:600;color:var(--text)">${a.title}</div><div style="font-size:12px;color:var(--muted)">${a.description||''}</div></div>`;
-        achList.appendChild(row);
-      });
-      if (!data?.length) achList.innerHTML = '<div style="color:var(--muted);padding:12px">Keine Achievements in diesem Zoo.</div>';
-    }
-    const zooSel = el('select',{style:'width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px;border-radius:8px;',onchange:e=>loadAchs(e.target.value)});
-    otherZoos.forEach(z=>{ const opt=el('option',{value:z.id},`${z.emoji} ${z.name}`); zooSel.appendChild(opt); });
-    pickModal.append(
-      el('div',{'class':'modal-header'},el('div',{'class':'modal-title'},'🔍 Achievement aus anderem Zoo'),el('button',{'class':'btn btn-ghost',onclick:()=>pickOverlay.remove()},'✕')),
-      el('div',{'class':'modal-body'},el('p',{style:'color:var(--muted);font-size:13px;margin-bottom:12px'},'Wähle einen Zoo und ein Achievement als Vorlage:'),zooSel,achList),
-      el('div',{'class':'modal-footer'},el('button',{'class':'btn btn-secondary',onclick:()=>pickOverlay.remove()},'Abbrechen')),
-    );
-    pickOverlay.appendChild(pickModal);
-    document.body.appendChild(pickOverlay);
-    loadAchs(otherZoos[0].id);
-  }
+  let importAchFromZoo = () => alert('Lädt…'); // will be redefined after inputs
   const QUICK_TAGS = [
     {v:'_all',label:'Alle Tiere'},
     {v:'_legendaer',label:'Alle Legendären'},
@@ -867,7 +838,6 @@ function AchievementModal(ach={}) {
     ...([...new Set(state.animals.map(a=>a.diet).filter(Boolean))].map(d=>({v:`_diet_${d}`,label:`Alle: ${d}`}))),
   ];
   const tagInp = el('input',{type:'text',value:form.tag,oninput:e=>form.tag=e.target.value,placeholder:'Tag eingeben oder oben wählen'});
-  let titleInp, descInp, iconInp;
   const quickWrap = el('div',{style:{display:'flex',flexWrap:'wrap',gap:'6px',marginBottom:'8px'}},
     ...QUICK_TAGS.map(qt => el('button',{'class':'btn btn-sm btn-secondary',onclick:()=>{form.tag=qt.v;tagInp.value=qt.v;}},'#'+qt.label))
   );
@@ -1013,6 +983,46 @@ function ChallengeModal(challenge={}) {
   const titleInp = el('input',{type:'text',value:form.title,placeholder:'z.B. Großkatzen-Duell',oninput:e=>form.title=e.target.value});
   const descInp  = el('textarea',{placeholder:'Kurze Beschreibung der Challenge',oninput:e=>form.description=e.target.value,rows:2},form.description);
   const iconInp  = el('input',{type:'text',value:form.icon,oninput:e=>form.icon=e.target.value,style:'width:60px;text-align:center;font-size:22px;'});
+
+  // Now inputs are defined, redefine import function
+  importAchFromZoo = async () => {
+    const otherZoos = state.zoos.filter(z => z.id !== state.currentZoo?.id);
+    if (!otherZoos.length) { alert('Keine anderen Zoos verfügbar.'); return; }
+    const pickOverlay = el('div', {'class':'modal-overlay', style:'z-index:1100'});
+    const pickModal = el('div', {'class':'modal fade', style:'max-width:420px'});
+    const achList = el('div', {style:'max-height:280px;overflow-y:auto;margin-top:12px'});
+    async function loadAchs(zooId) {
+      achList.innerHTML = '<div style="color:var(--muted);padding:12px">Lädt…</div>';
+      const { data } = await db.from('achievements').select('*').eq('zoo_id', zooId);
+      achList.innerHTML = '';
+      (data||[]).forEach(a => {
+        const row = el('div', {
+          style:'display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;cursor:pointer;',
+          onmouseenter:function(){this.style.background='var(--surface2)'},
+          onmouseleave:function(){this.style.background='transparent'},
+          onclick: () => {
+            form.title=a.title; form.description=a.description; form.icon=a.icon; form.tag=a.tag;
+            titleInp.value=a.title||''; descInp.value=a.description||''; iconInp.value=a.icon||'🏆';
+            tagInp.value=a.tag||'';
+            pickOverlay.remove();
+          }
+        });
+        row.innerHTML = `<span style="font-size:24px">${a.icon||'🏆'}</span><div><div style="font-weight:600;color:var(--text)">${a.title}</div><div style="font-size:12px;color:var(--muted)">${a.description||''}</div></div>`;
+        achList.appendChild(row);
+      });
+      if (!data?.length) achList.innerHTML = '<div style="color:var(--muted);padding:12px">Keine Achievements in diesem Zoo.</div>';
+    }
+    const zooSel = el('select',{style:'width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px;border-radius:8px;',onchange:e=>loadAchs(e.target.value)});
+    otherZoos.forEach(z=>{ const opt=el('option',{value:z.id},`${z.emoji} ${z.name}`); zooSel.appendChild(opt); });
+    pickModal.append(
+      el('div',{'class':'modal-header'},el('div',{'class':'modal-title'},'🔍 Achievement aus anderem Zoo'),el('button',{'class':'btn btn-ghost',onclick:()=>pickOverlay.remove()},'✕')),
+      el('div',{'class':'modal-body'},el('p',{style:'color:var(--muted);font-size:13px;margin-bottom:12px'},'Wähle einen Zoo und ein Achievement als Vorlage:'),zooSel,achList),
+      el('div',{'class':'modal-footer'},el('button',{'class':'btn btn-secondary',onclick:()=>pickOverlay.remove()},'Abbrechen')),
+    );
+    pickOverlay.appendChild(pickModal);
+    document.body.appendChild(pickOverlay);
+    loadAchs(otherZoos[0].id);
+  };
 
   modal.append(
     el('div',{'class':'modal-header'},
@@ -2037,7 +2047,7 @@ function render() {
 
   // Mobile zoo switcher bar - always visible on mobile
   if (state.zoos.length > 0) {
-    const mobileZooBar = el('div', {style:'display:none;padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10;'});
+    const mobileZooBar = el('div', {style:'padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10;'});
     mobileZooBar.setAttribute('class', 'mobile-zoo-bar');
     const mobileZooSel = el('select', {
       style:'width:100%;background:var(--surface2);border:1.5px solid var(--accent);color:var(--text);padding:12px 14px;border-radius:10px;font-size:16px;font-family:"DM Sans",sans-serif;outline:none;',
