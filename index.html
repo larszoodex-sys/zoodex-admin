@@ -977,6 +977,8 @@ async function PageBadges() {
     'rarity':          '⭐ Seltenheit',
     'all_rarity':      '💎 Alle Seltenheiten',
     'specific_animal': '🐾 Bestimmtes Tier',
+    'animal_name':     '🔍 Tierart (Name)',
+
   };
 
   allBadges.forEach(badge => {
@@ -1107,6 +1109,7 @@ function BadgeModal(badge={}, onSave) {
         { type:'rarity',         icon:'⭐', title:'Bestimmte Seltenheit',       desc:'Badge wenn Tier dieser Seltenheit fotografiert',placeholder:'',               hasValue:true, isSelect:true },
         { type:'all_rarity',     icon:'💎', title:'Alle Seltenheitsstufen',     desc:'Badge wenn alle 4 Stufen fotografiert wurden', placeholder:'',               hasValue:false },
         { type:'specific_animal',icon:'🐾', title:'Bestimmtes Tier',           desc:'Badge wenn ein bestimmtes Tier fotografiert',  placeholder:'Tier-ID',        hasValue:true },
+        { type:'animal_name',    icon:'🔍', title:'Tierart fotografieren',      desc:'Badge wenn Tier mit diesem Namen fotografiert (zoounabhängig)', placeholder:'z.B. Tiger', hasValue:true },
       ];
 
       CONDITIONS.forEach(cond => {
@@ -1686,6 +1689,65 @@ Website: https://www.zoo-berlin.de
 }
 
 
+function CopyToZooModal(type, data) {
+  const overlay = el('div', {'class':'modal-overlay'});
+  const modal   = el('div', {'class':'modal fade', style:'max-width:420px'});
+  
+  const otherZoos = state.zoos.filter(z => z.id !== state.currentZoo?.id);
+  
+  if (!otherZoos.length) {
+    alert('Es gibt keine anderen Zoos zum Kopieren.');
+    return;
+  }
+  
+  let selectedZooId = otherZoos[0].id;
+  
+  const sel = el('select', {
+    style:'width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:12px;border-radius:8px;font-size:15px;',
+    onchange: e => selectedZooId = e.target.value
+  });
+  otherZoos.forEach(z => {
+    const opt = el('option', {value: z.id}, `${z.emoji} ${z.name}`);
+    sel.appendChild(opt);
+  });
+  
+  const label = type === 'animal' ? 'Tier' : 'Achievement';
+  const name  = data.name || data.title || '?';
+  
+  modal.append(
+    el('div', {'class':'modal-header'},
+      el('div', {'class':'modal-title'}, `📋 ${label} kopieren`),
+      el('button', {'class':'btn btn-ghost', onclick:()=>overlay.remove()}, '✕'),
+    ),
+    el('div', {'class':'modal-body'},
+      el('p', {style:'color:var(--muted);margin-bottom:16px;font-size:14px'}, 
+        `"${name}" in diesen Zoo kopieren:`),
+      sel,
+      el('div', {style:'background:rgba(74,222,128,.08);border-radius:8px;padding:12px;margin-top:12px;font-size:12px;color:var(--muted)'},
+        '💡 Das Original bleibt erhalten. Es wird eine Kopie im Ziel-Zoo erstellt.'
+      ),
+    ),
+    el('div', {'class':'modal-footer'},
+      el('button', {'class':'btn btn-secondary', onclick:()=>overlay.remove()}, 'Abbrechen'),
+      el('button', {'class':'btn btn-primary', onclick:async()=>{
+        const { id, zoo_id, created_at, ...copyData } = data;
+        copyData.zoo_id = selectedZooId;
+        const table = type === 'animal' ? 'animals' : 'achievements';
+        const { error } = await db.from(table).insert(copyData);
+        if (error) { alert('Fehler: ' + error.message); return; }
+        overlay.remove();
+        const targetZoo = state.zoos.find(z => z.id === selectedZooId);
+        setState({alert:{type:'success', msg:`✓ In "${targetZoo?.name}" kopiert!`}});
+        setTimeout(()=>setState({alert:null}), 3000);
+      }}, '✓ Kopieren'),
+    ),
+  );
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+}
+
+
 function PageZoos() {
   const div = el('div',{'class':'fade'});
   div.appendChild(el('div',{'class':'topbar'},
@@ -1842,7 +1904,7 @@ function render() {
   nav.appendChild(el('button',{'class':'nav-item',onclick:logout},el('span',{'class':'icon'},'→'),'Abmelden'));
 
   const zooSwitch = el('div',{'class':'zoo-switcher'});
-  const sel = el('select',{'class':'zoo-select',onchange:e=>switchZoo(e.target.value)});
+  const sel = el('select',{'class':'zoo-select',style:'font-size:15px;padding:10px 12px;width:100%;',onchange:e=>switchZoo(e.target.value)});
   state.zoos.forEach(z=>{
     const opt = el('option',{value:z.id},z.name);
     if (state.currentZoo?.id===z.id) opt.selected=true;
