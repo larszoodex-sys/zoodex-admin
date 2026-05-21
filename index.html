@@ -568,6 +568,7 @@ function AnimalModal(animal={}) {
 
   const footer = el('div', {'class':'modal-footer'},
     el('button', {'class':'btn btn-secondary', onclick:()=>overlay.remove()}, 'Abbrechen'),
+    animal.id && el('button', {'class':'btn btn-secondary', onclick:()=>CopyToZooModal('animal', form)}, '📋 Kopieren'),
     el('button', {'class':'btn btn-primary', onclick: async () => {
       form.description    = inputs.description.value;
       form.fun_fact       = inputs.fun_fact.value;
@@ -585,9 +586,79 @@ function AnimalModal(animal={}) {
     }}, animal.id ? '✓ Speichern' : '+ Hinzufügen'),
   );
 
+  // Import from another zoo function
+  async function importFromZoo() {
+    const otherZoos = state.zoos.filter(z => z.id !== state.currentZoo?.id);
+    if (!otherZoos.length) { alert('Keine anderen Zoos verfügbar.'); return; }
+    
+    const pickOverlay = el('div', {'class':'modal-overlay', style:'z-index:1100'});
+    const pickModal = el('div', {'class':'modal fade', style:'max-width:460px'});
+    
+    let selectedZooId = otherZoos[0].id;
+    let selectedAnimalId = null;
+    const animalList = el('div', {style:'max-height:300px;overflow-y:auto;margin-top:12px'});
+    
+    async function loadAnimals(zooId) {
+      animalList.innerHTML = '<div style="color:var(--muted);padding:12px">Lädt…</div>';
+      const { data } = await db.from('animals').select('*').eq('zoo_id', zooId).order('name');
+      animalList.innerHTML = '';
+      (data||[]).forEach(a => {
+        const row = el('div', {
+          style:'display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;cursor:pointer;transition:background .1s',
+          onmouseenter:function(){this.style.background='var(--surface2)'},
+          onmouseleave:function(){this.style.background='transparent'},
+          onclick: () => {
+            // Fill form with this animal's data
+            selectedAnimalId = a.id;
+            Object.keys(form).forEach(k => { if(a[k] !== undefined) form[k] = a[k]; });
+            form.id = null; form.zoo_id = state.currentZoo?.id;
+            // Update all inputs
+            ['name','latin','habitat','diet','weight','lifespan','behavior','threat_status',
+             'name_en','description_en','fun_fact_en','behavior_en','threat_status_en'].forEach(k => {
+              if (inputs[k]) inputs[k].value = form[k] || '';
+            });
+            if (inputs.description) inputs.description.value = form.description || '';
+            if (inputs.fun_fact) inputs.fun_fact.value = form.fun_fact || '';
+            pickOverlay.remove();
+          }
+        });
+        row.innerHTML = `<span style="font-size:11px;background:var(--surface2);padding:2px 6px;border-radius:4px">${a.rarity||'standard'}</span> <span style="font-weight:600;color:var(--text)">${a.name}</span> <span style="color:var(--muted);font-size:12px">${a.latin||''}</span>`;
+        animalList.appendChild(row);
+      });
+    }
+    
+    const zooSel = el('select', {
+      style:'width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px;border-radius:8px;margin-bottom:4px;',
+      onchange: e => { selectedZooId=e.target.value; loadAnimals(e.target.value); }
+    });
+    otherZoos.forEach(z => {
+      const opt = el('option',{value:z.id},`${z.emoji} ${z.name}`);
+      zooSel.appendChild(opt);
+    });
+    
+    pickModal.append(
+      el('div',{'class':'modal-header'},
+        el('div',{'class':'modal-title'},'🔍 Tier aus anderem Zoo'),
+        el('button',{'class':'btn btn-ghost',onclick:()=>pickOverlay.remove()},'✕'),
+      ),
+      el('div',{'class':'modal-body'},
+        el('p',{style:'color:var(--muted);font-size:13px;margin-bottom:12px'},'Wähle einen Zoo und dann ein Tier als Vorlage:'),
+        zooSel,
+        animalList,
+      ),
+      el('div',{'class':'modal-footer'},
+        el('button',{'class':'btn btn-secondary',onclick:()=>pickOverlay.remove()},'Abbrechen'),
+      ),
+    );
+    pickOverlay.appendChild(pickModal);
+    document.body.appendChild(pickOverlay);
+    loadAnimals(otherZoos[0].id);
+  }
+
   modal.append(
     el('div', {'class':'modal-header'},
       el('div', {'class':'modal-title'}, animal.id ? `Bearbeiten: ${animal.name}` : 'Neues Tier'),
+      !animal.id && el('button',{'class':'btn btn-secondary btn-sm',onclick:importFromZoo},'📋 Aus anderem Zoo'),
       el('button', {'class':'btn btn-ghost', onclick:()=>overlay.remove()}, '✕'),
     ),
     body, footer,
@@ -751,6 +822,44 @@ function AchievementModal(ach={}) {
   let form = { id:ach.id||null, title:ach.title||'', description:ach.description||'', icon:ach.icon||'🏆', tag:ach.tag||'' };
   const overlay = el('div', {'class':'modal-overlay'});
   const modal   = el('div', {'class':'modal fade'});
+
+  async function importAchFromZoo() {
+    const otherZoos = state.zoos.filter(z => z.id !== state.currentZoo?.id);
+    if (!otherZoos.length) { alert('Keine anderen Zoos verfügbar.'); return; }
+    const pickOverlay = el('div', {'class':'modal-overlay', style:'z-index:1100'});
+    const pickModal = el('div', {'class':'modal fade', style:'max-width:420px'});
+    const achList = el('div', {style:'max-height:280px;overflow-y:auto;margin-top:12px'});
+    async function loadAchs(zooId) {
+      achList.innerHTML = '<div style="color:var(--muted);padding:12px">Lädt…</div>';
+      const { data } = await db.from('achievements').select('*').eq('zoo_id', zooId);
+      achList.innerHTML = '';
+      (data||[]).forEach(a => {
+        const row = el('div', {
+          style:'display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;cursor:pointer;',
+          onmouseenter:function(){this.style.background='var(--surface2)'},
+          onmouseleave:function(){this.style.background='transparent'},
+          onclick: () => {
+            form.title=a.title; form.description=a.description; form.icon=a.icon; form.tag=a.tag;
+            titleInp.value=a.title||''; descInp.value=a.description||''; iconInp.value=a.icon||'🏆';
+            pickOverlay.remove();
+          }
+        });
+        row.innerHTML = `<span style="font-size:24px">${a.icon||'🏆'}</span><div><div style="font-weight:600;color:var(--text)">${a.title}</div><div style="font-size:12px;color:var(--muted)">${a.description||''}</div></div>`;
+        achList.appendChild(row);
+      });
+      if (!data?.length) achList.innerHTML = '<div style="color:var(--muted);padding:12px">Keine Achievements in diesem Zoo.</div>';
+    }
+    const zooSel = el('select',{style:'width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px;border-radius:8px;',onchange:e=>loadAchs(e.target.value)});
+    otherZoos.forEach(z=>{ const opt=el('option',{value:z.id},`${z.emoji} ${z.name}`); zooSel.appendChild(opt); });
+    pickModal.append(
+      el('div',{'class':'modal-header'},el('div',{'class':'modal-title'},'🔍 Achievement aus anderem Zoo'),el('button',{'class':'btn btn-ghost',onclick:()=>pickOverlay.remove()},'✕')),
+      el('div',{'class':'modal-body'},el('p',{style:'color:var(--muted);font-size:13px;margin-bottom:12px'},'Wähle einen Zoo und ein Achievement als Vorlage:'),zooSel,achList),
+      el('div',{'class':'modal-footer'},el('button',{'class':'btn btn-secondary',onclick:()=>pickOverlay.remove()},'Abbrechen')),
+    );
+    pickOverlay.appendChild(pickModal);
+    document.body.appendChild(pickOverlay);
+    loadAchs(otherZoos[0].id);
+  }
   const QUICK_TAGS = [
     {v:'_all',label:'Alle Tiere'},
     {v:'_legendaer',label:'Alle Legendären'},
@@ -758,6 +867,7 @@ function AchievementModal(ach={}) {
     ...([...new Set(state.animals.map(a=>a.diet).filter(Boolean))].map(d=>({v:`_diet_${d}`,label:`Alle: ${d}`}))),
   ];
   const tagInp = el('input',{type:'text',value:form.tag,oninput:e=>form.tag=e.target.value,placeholder:'Tag eingeben oder oben wählen'});
+  let titleInp, descInp, iconInp;
   const quickWrap = el('div',{style:{display:'flex',flexWrap:'wrap',gap:'6px',marginBottom:'8px'}},
     ...QUICK_TAGS.map(qt => el('button',{'class':'btn btn-sm btn-secondary',onclick:()=>{form.tag=qt.v;tagInp.value=qt.v;}},'#'+qt.label))
   );
@@ -776,6 +886,7 @@ function AchievementModal(ach={}) {
     ),
     el('div',{'class':'modal-footer'},
       el('button',{'class':'btn btn-secondary',onclick:()=>overlay.remove()},'Abbrechen'),
+      ach.id && el('button',{'class':'btn btn-secondary',onclick:()=>CopyToZooModal('achievement', form)},'📋 Kopieren'),
       el('button',{'class':'btn btn-primary',onclick:async()=>{await saveAchievement(form);overlay.remove();}},'Speichern'),
     ),
   );
@@ -855,6 +966,7 @@ function ZooModal(zoo={}) {
     ),
     el('div',{'class':'modal-footer'},
       el('button',{'class':'btn btn-secondary',onclick:()=>overlay.remove()},'Abbrechen'),
+      ach.id && el('button',{'class':'btn btn-secondary',onclick:()=>CopyToZooModal('achievement', form)},'📋 Kopieren'),
       el('button',{'class':'btn btn-primary',onclick:async()=>{
         for(const k of Object.keys(inputs)){
           if(inputs[k].value!==undefined) form[k]=inputs[k].value;
@@ -927,6 +1039,7 @@ function ChallengeModal(challenge={}) {
     ),
     el('div',{'class':'modal-footer'},
       el('button',{'class':'btn btn-secondary',onclick:()=>overlay.remove()},'Abbrechen'),
+      ach.id && el('button',{'class':'btn btn-secondary',onclick:()=>CopyToZooModal('achievement', form)},'📋 Kopieren'),
       el('button',{'class':'btn btn-primary',onclick:async()=>{
         if(!form.title){alert('Bitte Titel eingeben.');return;}
         // Save to achievements table with type=challenge
@@ -1777,7 +1890,13 @@ function PageZoos() {
         <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:#FFF">${z.name}</div>
         <div style="font-size:12px;color:${z.accent};margin-top:2px">${z.tagline||''}</div>
       </div>
+      <div class="zoo-count-${z.id}" style="font-size:11px;color:rgba(255,255,255,.5);flex-shrink:0">…</div>
     `;
+    db.from('animals').select('id',{count:'exact',head:true}).eq('zoo_id',z.id).then(({count})=>{
+      const el2=card.querySelector('.zoo-count-${z.id}');
+      // Use querySelectorAll since class has dynamic ID
+      card.querySelectorAll('[class*="zoo-count-"]').forEach(e=>e.textContent=(count||0)+' Tiere');
+    });
     const body = el('div',{style:{padding:'20px 24px'}});
     body.innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
@@ -1904,9 +2023,9 @@ function render() {
   nav.appendChild(el('button',{'class':'nav-item',onclick:logout},el('span',{'class':'icon'},'→'),'Abmelden'));
 
   const zooSwitch = el('div',{'class':'zoo-switcher'});
-  const sel = el('select',{'class':'zoo-select',style:'font-size:15px;padding:10px 12px;width:100%;',onchange:e=>switchZoo(e.target.value)});
+  const sel = el('select',{'class':'zoo-select',style:'font-size:15px;padding:12px;width:100%;',onchange:e=>switchZoo(e.target.value)});
   state.zoos.forEach(z=>{
-    const opt = el('option',{value:z.id},z.name);
+    const opt = el('option',{value:z.id},`${z.emoji} ${z.name}`);
     if (state.currentZoo?.id===z.id) opt.selected=true;
     sel.appendChild(opt);
   });
@@ -1915,6 +2034,24 @@ function render() {
 
   // MAIN
   const main = el('div',{'class':'main'});
+
+  // Mobile zoo switcher bar - always visible on mobile
+  if (state.zoos.length > 0) {
+    const mobileZooBar = el('div', {style:'display:none;padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10;'});
+    mobileZooBar.setAttribute('class', 'mobile-zoo-bar');
+    const mobileZooSel = el('select', {
+      style:'width:100%;background:var(--surface2);border:1.5px solid var(--accent);color:var(--text);padding:12px 14px;border-radius:10px;font-size:16px;font-family:"DM Sans",sans-serif;outline:none;',
+      onchange: e => switchZoo(e.target.value)
+    });
+    state.zoos.forEach(z => {
+      const opt = el('option', {value:z.id}, `${z.emoji}  ${z.name}`);
+      if (state.currentZoo?.id === z.id) opt.selected = true;
+      mobileZooSel.appendChild(opt);
+    });
+    mobileZooBar.appendChild(mobileZooSel);
+    main.appendChild(mobileZooBar);
+  }
+
   if (state.loading) {
     main.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:200px;color:var(--muted)"><span class="spin" style="font-size:32px">⟳</span></div>';
   } else {
